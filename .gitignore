@@ -74,3 +74,6 @@ coverage.html
 # Debug files
 debug
 debug.test
+
+# Data files
+data/

@@ -3,7 +3,7 @@ class Commander {
     constructor() {
         this.ws = null;
         this.tasks = new Map();
-        this.currentFilter = 'all';
+        this.currentFilter = 'running';
         this.currentTheme = localStorage.getItem('commander-theme') || 'default';
         this.init();
     }
@@ -224,6 +224,7 @@ class Commander {
                 
                 if (response.ok) {
                     document.getElementById('args').value = '';
+                    this.showNotification('Task created successfully');
                     // Task will be added via WebSocket message
                 } else {
                     this.showNotification('Failed to create task', true);
