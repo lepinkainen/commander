@@ -251,6 +251,14 @@ class Commander {
                 this.switchTheme(themeName);
             });
         });
+
+        // Event delegation for cancel buttons
+        document.getElementById('taskList').addEventListener('click', (e) => {
+            if (e.target.classList.contains('cancel-btn')) {
+                const taskId = e.target.dataset.taskId;
+                this.cancelTask(taskId);
+            }
+        });
     }
 
     renderTasks() {
@@ -286,10 +294,14 @@ class Commander {
         
         const command = `${task.command} ${task.args.join(' ')}`;
         const hasOutput = task.output && task.output.length > 0;
+        const isCancelable = task.status === 'running' || task.status === 'queued';
         
         div.innerHTML = `
             <div class="task-header">
                 <span class="task-tool">${task.tool}</span>
+                <div class="task-actions">
+                    ${isCancelable ? `<button class="cancel-btn" data-task-id="${task.id}">Cancel</button>` : ''}
+                </div>
                 <span class="task-status status-${task.status}">${task.status.toUpperCase()}</span>
             </div>
             <div class="task-command">${this.escapeHtml(command)}</div>
@@ -322,6 +334,19 @@ class Commander {
         if (statusElement) {
             statusElement.className = `task-status status-${task.status}`;
             statusElement.textContent = task.status.toUpperCase();
+        }
+
+        // Update cancel button
+        const actionsContainer = element.querySelector('.task-actions');
+        if (actionsContainer) {
+            const isCancelable = task.status === 'running' || task.status === 'queued';
+            if (isCancelable) {
+                if (!actionsContainer.querySelector('.cancel-btn')) {
+                    actionsContainer.innerHTML = `<button class="cancel-btn" data-task-id="${task.id}">Cancel</button>`;
+                }
+            } else {
+                actionsContainer.innerHTML = '';
+            }
         }
         
         // Update error if present
@@ -357,6 +382,21 @@ class Commander {
         
         // Auto-scroll to bottom
         outputContainer.scrollTop = outputContainer.scrollHeight;
+    }
+
+    async cancelTask(taskId) {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/cancel`, {
+                method: 'POST',
+            });
+            
+            if (!response.ok) {
+                alert('Failed to cancel task');
+            }
+        } catch (error) {
+            console.error('Failed to cancel task:', error);
+            alert('Failed to cancel task');
+        }
     }
 
     updateConnectionStatus(connected) {
