@@ -1,65 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Commander - CLI Tool Manager</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <header>
-        <div class="theme-selector">
-            <div class="theme-icon default active" data-theme="default" title="Default Theme">🎨</div>
-            <div class="theme-icon terminal" data-theme="terminal" title="Terminal Theme">💻</div>
+      <div class="theme-selector">
+        <div
+          class="theme-icon default active"
+          data-theme="default"
+          title="Default Theme"
+        >
+          🎨
         </div>
-        <h1>🚀 Commander</h1>
+        <div
+          class="theme-icon terminal"
+          data-theme="terminal"
+          title="Terminal Theme"
+        >
+          💻
+        </div>
+      </div>
+      <h1>🚀 Commander</h1>
     </header>
 
     <div class="container">
-        <div class="stats-grid" id="stats">
-            <!-- Stats will be populated here -->
-        </div>
-
-        <div class="create-task">
-            <h2 style="margin-bottom: 20px;">Create New Task</h2>
-            <form id="taskForm">
-                <div class="form-group">
-                    <label>Tool</label>
-                    <div id="tool-buttons" class="tool-buttons">
-                        <!-- Tool buttons will be populated dynamically -->
-                    </div>
-                    <input type="hidden" id="tool" name="tool" required>
-                </div>
-                <div class="form-group">
-                    <label for="args">Arguments</label>
-                    <input type="text" id="args" name="args" placeholder="e.g., https://example.com/video for yt-dlp">
-                </div>
-                <button type="submit">Add Task to Queue</button>
-            </form>
-        </div>
-
-        <div class="tasks-container">
-            <h2 style="margin-bottom: 20px;">Tasks</h2>
-            <div class="task-filters">
-                <button class="filter-btn active" data-filter="running">Running</button>
-                <button class="filter-btn" data-filter="queued">Queued</button>
-                <button class="filter-btn" data-filter="complete">Complete</button>
-                <button class="filter-btn" data-filter="failed">Failed</button>
-                <button class="filter-btn" data-filter="all">All</button>
+      <div class="create-task">
+        <h2 style="margin-bottom: 20px">Create New Task</h2>
+        <form id="taskForm">
+          <div class="form-group">
+            <label>Tool</label>
+            <div id="tool-buttons" class="tool-buttons">
+              <!-- Tool buttons will be populated dynamically -->
             </div>
-            <div class="task-list" id="taskList">
-                <!-- Tasks will be populated here -->
-            </div>
+            <input type="hidden" id="tool" name="tool" required />
+          </div>
+          <div class="form-group">
+            <label for="args">Arguments</label>
+            <input
+              type="text"
+              id="args"
+              name="args"
+              placeholder="e.g., https://example.com/video for yt-dlp"
+            />
+          </div>
+          <button type="submit">Add Task to Queue</button>
+        </form>
+      </div>
+
+      <div class="stats-grid" id="stats">
+        <!-- Stats will be populated here -->
+      </div>
+
+      <div class="tasks-container">
+        <h2 style="margin-bottom: 20px">Tasks</h2>
+        <div class="task-filters">
+          <button class="filter-btn active" data-filter="running">
+            Running
+          </button>
+          <button class="filter-btn" data-filter="queued">Queued</button>
+          <button class="filter-btn" data-filter="complete">Complete</button>
+          <button class="filter-btn" data-filter="failed">Failed</button>
+          <button class="filter-btn" data-filter="all">All</button>
         </div>
+        <div class="task-list" id="taskList">
+          <!-- Tasks will be populated here -->
+        </div>
+      </div>
     </div>
 
     <div class="connection-status disconnected" id="connectionStatus">
-        Disconnected
+      Disconnected
     </div>
 
     <div class="notification-container" id="notificationContainer"></div>
 
     <script src="/app.js"></script>
-</body>
+  </body>
 </html>
