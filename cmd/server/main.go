@@ -12,6 +12,7 @@ import (
 
 	"github.com/lepinkainen/commander/internal/api"
 	"github.com/lepinkainen/commander/internal/executor"
+	"github.com/lepinkainen/commander/internal/storage"
 	"github.com/lepinkainen/commander/internal/task"
 )
 
@@ -20,11 +21,24 @@ func main() {
 		addr       = flag.String("addr", ":8080", "Server address")
 		workers    = flag.Int("workers", 4, "Number of workers per tool")
 		configPath = flag.String("config", "./config/tools.json", "Path to tools configuration")
+		dbPath     = flag.String("db", "./data/commander.db", "Path to SQLite database")
 	)
 	flag.Parse()
 
+	// Ensure data directory exists
+	if err := os.MkdirAll("./data", 0755); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
+	// Initialize database
+	repo, err := storage.NewSQLiteRepository(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer repo.Close()
+
 	// Create task manager
-	manager := task.NewManager()
+	manager := task.NewManager(repo)
 
 	// Create executor with configured tools
 	exec, err := executor.NewExecutor(*configPath, *workers, manager)
@@ -72,6 +86,11 @@ func main() {
 
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	// Close database connection
+	if err := repo.Close(); err != nil {
+		log.Printf("Error closing database: %v", err)
 	}
 
 	log.Println("Server exited")

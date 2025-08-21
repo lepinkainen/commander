@@ -296,6 +296,40 @@
             background: #e53e3e;
         }
 
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1002;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .notification {
+            background: #f56565;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.5s ease;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: #f56565;
+        }
+
+        .notification.success {
+            background: #48bb78;
+        }
+
         .task-item:hover {
             border-color: var(--border-hover);
             box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);

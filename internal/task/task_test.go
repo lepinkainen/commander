@@ -3,6 +3,8 @@ package task
 import (
 	"testing"
 	"time"
+
+	"github.com/lepinkainen/commander/internal/types"
 )
 
 func TestNewTask(t *testing.T) {
@@ -24,8 +26,8 @@ func TestNewTask(t *testing.T) {
 		t.Errorf("Expected %d args, got %d", len(args), len(task.Args))
 	}
 
-	if task.Status != StatusQueued {
-		t.Errorf("Expected status %s, got %s", StatusQueued, task.Status)
+	if task.Status != types.StatusQueued {
+		t.Errorf("Expected status %s, got %s", types.StatusQueued, task.Status)
 	}
 
 	if task.ID == "" {
@@ -63,18 +65,18 @@ func TestTaskSetStatus(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
 
 	// Test setting to running
-	task.SetStatus(StatusRunning)
-	if task.Status != StatusRunning {
-		t.Errorf("Expected status %s, got %s", StatusRunning, task.Status)
+	task.SetStatus(types.StatusRunning)
+	if task.Status != types.StatusRunning {
+		t.Errorf("Expected status %s, got %s", types.StatusRunning, task.Status)
 	}
 	if task.StartedAt.IsZero() {
 		t.Error("Expected StartedAt to be set when status is running")
 	}
 
 	// Test setting to complete
-	task.SetStatus(StatusComplete)
-	if task.Status != StatusComplete {
-		t.Errorf("Expected status %s, got %s", StatusComplete, task.Status)
+	task.SetStatus(types.StatusComplete)
+	if task.Status != types.StatusComplete {
+		t.Errorf("Expected status %s, got %s", types.StatusComplete, task.Status)
 	}
 	if task.EndedAt.IsZero() {
 		t.Error("Expected EndedAt to be set when status is complete")
@@ -96,20 +98,20 @@ func TestTaskGetStatus(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
 
 	status := task.GetStatus()
-	if status != StatusQueued {
-		t.Errorf("Expected status %s, got %s", StatusQueued, status)
+	if status != types.StatusQueued {
+		t.Errorf("Expected status %s, got %s", types.StatusQueued, status)
 	}
 
-	task.SetStatus(StatusRunning)
+	task.SetStatus(types.StatusRunning)
 	status = task.GetStatus()
-	if status != StatusRunning {
-		t.Errorf("Expected status %s, got %s", StatusRunning, status)
+	if status != types.StatusRunning {
+		t.Errorf("Expected status %s, got %s", types.StatusRunning, status)
 	}
 }
 
 func TestTaskClone(t *testing.T) {
 	task := NewTask("test", "echo", []string{"arg1", "arg2"})
-	task.SetStatus(StatusRunning)
+	task.SetStatus(types.StatusRunning)
 	task.AppendOutput("output line")
 	task.SetError("test error")
 
@@ -157,14 +159,14 @@ func TestTaskClone(t *testing.T) {
 func TestStatusValues(t *testing.T) {
 	// Test that all status constants have expected values
 	tests := []struct {
-		status   Status
+		status   types.Status
 		expected string
 	}{
-		{StatusQueued, "queued"},
-		{StatusRunning, "running"},
-		{StatusComplete, "complete"},
-		{StatusFailed, "failed"},
-		{StatusCanceled, "canceled"},
+		{types.StatusQueued, "queued"},
+		{types.StatusRunning, "running"},
+		{types.StatusComplete, "complete"},
+		{types.StatusFailed, "failed"},
+		{types.StatusCanceled, "canceled"},
 	}
 
 	for _, test := range tests {

@@ -226,11 +226,11 @@ class Commander {
                     document.getElementById('args').value = '';
                     // Task will be added via WebSocket message
                 } else {
-                    alert('Failed to create task');
+                    this.showNotification('Failed to create task', true);
                 }
             } catch (error) {
                 console.error('Failed to create task:', error);
-                alert('Failed to create task');
+                this.showNotification('Failed to create task', true);
             }
         });
         
@@ -391,12 +391,34 @@ class Commander {
             });
             
             if (!response.ok) {
-                alert('Failed to cancel task');
+                this.showNotification('Failed to cancel task', true);
             }
         } catch (error) {
             console.error('Failed to cancel task:', error);
-            alert('Failed to cancel task');
+            this.showNotification('Failed to cancel task', true);
         }
+    }
+
+    showNotification(message, isError = false) {
+        const container = document.getElementById('notificationContainer');
+        const notification = document.createElement('div');
+        notification.className = `notification ${isError ? 'error' : 'success'}`;
+        notification.textContent = message;
+        
+        container.appendChild(notification);
+        
+        // Trigger the animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 10);
+        
+        // Remove the notification after 3 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                container.removeChild(notification);
+            }, 500);
+        }, 3000);
     }
 
     updateConnectionStatus(connected) {

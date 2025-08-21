@@ -1,13 +1,18 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sync"
+
+	"github.com/lepinkainen/commander/internal/storage"
+	"github.com/lepinkainen/commander/internal/types"
 )
 
 // Manager manages all tasks
 type Manager struct {
-	tasks     map[string]*Task
+	repo      storage.TaskRepository
+	tasks     map[string]*Task // In-memory cache for active tasks
 	queues    map[string]chan *Task
 	mu        sync.RWMutex
 	listeners []chan TaskEvent
@@ -21,8 +26,9 @@ type TaskEvent struct {
 }
 
 // NewManager creates a new task manager
-func NewManager() *Manager {
+func NewManager(repo storage.TaskRepository) *Manager {
 	return &Manager{
+		repo:      repo,
 		tasks:     make(map[string]*Task),
 		queues:    make(map[string]chan *Task),
 		listeners: make([]chan TaskEvent, 0),
@@ -49,6 +55,13 @@ func (m *Manager) AddTask(task *Task) error {
 		return fmt.Errorf("task %s already exists", task.ID)
 	}
 
+	// Save to database
+	ctx := context.Background()
+	if err := m.repo.Create(ctx, task.Clone()); err != nil {
+		return fmt.Errorf("failed to save task to database: %w", err)
+	}
+
+	// Add to in-memory cache
 	m.tasks[task.ID] = task
 
 	// Send to appropriate queue
@@ -73,52 +86,91 @@ func (m *Manager) AddTask(task *Task) error {
 // GetTask returns a task by ID
 func (m *Manager) GetTask(id string) (*Task, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	// First check in-memory cache for active tasks
 	task, exists := m.tasks[id]
-	if !exists {
-		return nil, fmt.Errorf("task %s not found", id)
+	m.mu.RUnlock()
+
+	if exists {
+		return task, nil
 	}
 
-	return task, nil
+	// If not in cache, try to load from database
+	ctx := context.Background()
+	data, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert TaskData back to Task
+	dbTask := &Task{TaskData: data}
+	return dbTask, nil
 }
 
 // GetAllTasks returns all tasks
 func (m *Manager) GetAllTasks() []*Task {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	tasks := make([]*Task, 0, len(m.tasks))
-	for _, task := range m.tasks {
-		tasks = append(tasks, task)
+	// Load all tasks from database
+	ctx := context.Background()
+	data, err := m.repo.List(ctx)
+	if err != nil {
+		// Fallback to in-memory tasks if database fails
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		memoryTasks := make([]*Task, 0, len(m.tasks))
+		for _, task := range m.tasks {
+			memoryTasks = append(memoryTasks, task)
+		}
+		return memoryTasks
 	}
 
+	// Convert TaskData slice to Task slice
+	tasks := make([]*Task, len(data))
+	for i, d := range data {
+		tasks[i] = &Task{TaskData: d}
+	}
 	return tasks
 }
 
 // GetTasksByTool returns tasks for a specific tool
 func (m *Manager) GetTasksByTool(tool string) []*Task {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	tasks := make([]*Task, 0)
-	for _, task := range m.tasks {
-		if task.Tool == tool {
-			tasks = append(tasks, task)
+	// Load tasks from database
+	ctx := context.Background()
+	data, err := m.repo.ListByTool(ctx, tool)
+	if err != nil {
+		// Fallback to in-memory tasks if database fails
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		memoryTasks := make([]*Task, 0)
+		for _, task := range m.tasks {
+			if task.Tool == tool {
+				memoryTasks = append(memoryTasks, task)
+			}
 		}
+		return memoryTasks
 	}
 
+	// Convert TaskData slice to Task slice
+	tasks := make([]*Task, len(data))
+	for i, d := range data {
+		tasks[i] = &Task{TaskData: d}
+	}
 	return tasks
 }
 
 // UpdateTaskStatus updates a task's status and broadcasts the change
-func (m *Manager) UpdateTaskStatus(taskID string, status Status) error {
+func (m *Manager) UpdateTaskStatus(taskID string, status types.Status) error {
 	task, err := m.GetTask(taskID)
 	if err != nil {
 		return err
 	}
 
 	task.SetStatus(status)
+
+	// Update in database
+	ctx := context.Background()
+	if err := m.repo.Update(ctx, task.Clone()); err != nil {
+		// Log error but don't fail - we can continue with in-memory
+		fmt.Printf("Warning: failed to update task in database: %v\n", err)
+	}
 
 	m.broadcastEvent(TaskEvent{
 		TaskID: taskID,
@@ -137,6 +189,13 @@ func (m *Manager) AppendTaskOutput(taskID string, output string) error {
 	}
 
 	task.AppendOutput(output)
+
+	// Save output to database
+	ctx := context.Background()
+	if err := m.repo.AppendOutput(ctx, taskID, output); err != nil {
+		// Log error but don't fail - we can continue with in-memory
+		fmt.Printf("Warning: failed to save output to database: %v\n", err)
+	}
 
 	m.broadcastEvent(TaskEvent{
 		TaskID: taskID,
@@ -195,15 +254,25 @@ func (m *Manager) GetQueueStats() map[string]QueueStats {
 			Pending: len(queue),
 		}
 
-		// Count running and completed tasks
+		// Count running tasks from in-memory cache (active tasks)
 		for _, task := range m.tasks {
 			if task.Tool == tool {
 				switch task.GetStatus() {
-				case StatusRunning:
+				case types.StatusRunning:
 					toolStats.Running++
-				case StatusComplete:
+				}
+			}
+		}
+
+		// Count completed/failed from database
+		ctx := context.Background()
+		allTasks, err := m.repo.ListByTool(ctx, tool)
+		if err == nil {
+			for _, taskData := range allTasks {
+				switch taskData.Status {
+				case types.StatusComplete:
 					toolStats.Completed++
-				case StatusFailed:
+				case types.StatusFailed:
 					toolStats.Failed++
 				}
 			}

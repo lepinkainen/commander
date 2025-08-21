@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/lepinkainen/commander/internal/task"
+	"github.com/lepinkainen/commander/internal/types"
 )
 
 // Tool represents a CLI tool configuration
@@ -182,7 +183,7 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	log.Printf("Executing task %s with %s", t.ID, tool.Name)
 
 	// Update status to running
-	if err := e.manager.UpdateTaskStatus(t.ID, task.StatusRunning); err != nil {
+	if err := e.manager.UpdateTaskStatus(t.ID, types.StatusRunning); err != nil {
 		log.Printf("Failed to update task status to running: %v", err)
 	}
 
@@ -196,7 +197,7 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.SetError(fmt.Sprintf("Failed to create stdout pipe: %v", err))
-		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, types.StatusFailed); updateErr != nil {
 			log.Printf("Failed to update task status: %v", updateErr)
 		}
 		return
@@ -205,7 +206,7 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.SetError(fmt.Sprintf("Failed to create stderr pipe: %v", err))
-		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, types.StatusFailed); updateErr != nil {
 			log.Printf("Failed to update task status: %v", updateErr)
 		}
 		return
@@ -214,7 +215,7 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	// Start the command
 	if err = cmd.Start(); err != nil {
 		t.SetError(fmt.Sprintf("Failed to start command: %v", err))
-		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, types.StatusFailed); updateErr != nil {
 			log.Printf("Failed to update task status: %v", updateErr)
 		}
 		return
@@ -244,19 +245,19 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	if err != nil {
 		if e.ctx.Err() != nil {
 			// Context was canceled
-			if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusCanceled); updateErr != nil {
+			if updateErr := e.manager.UpdateTaskStatus(t.ID, types.StatusCanceled); updateErr != nil {
 				log.Printf("Failed to update task status: %v", updateErr)
 			}
 		} else {
 			t.SetError(fmt.Sprintf("Command failed: %v", err))
-			if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+			if updateErr := e.manager.UpdateTaskStatus(t.ID, types.StatusFailed); updateErr != nil {
 				log.Printf("Failed to update task status: %v", updateErr)
 			}
 		}
 		return
 	}
 
-	if err := e.manager.UpdateTaskStatus(t.ID, task.StatusComplete); err != nil {
+	if err := e.manager.UpdateTaskStatus(t.ID, types.StatusComplete); err != nil {
 		log.Printf("Failed to update task status to complete: %v", err)
 	}
 	log.Printf("Task %s completed successfully", t.ID)

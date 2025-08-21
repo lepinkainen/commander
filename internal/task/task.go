@@ -5,48 +5,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lepinkainen/commander/internal/types"
 )
-
-// Status represents the current state of a task
-type Status string
-
-const (
-	StatusQueued   Status = "queued"
-	StatusRunning  Status = "running"
-	StatusComplete Status = "complete"
-	StatusFailed   Status = "failed"
-	StatusCanceled Status = "canceled"
-)
-
-// TaskData represents the data fields of a task (without mutex)
-type TaskData struct {
-	ID        string    `json:"id"`
-	Tool      string    `json:"tool"`
-	Command   string    `json:"command"`
-	Args      []string  `json:"args"`
-	Status    Status    `json:"status"`
-	Output    []string  `json:"output"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	StartedAt time.Time `json:"started_at,omitempty"`
-	EndedAt   time.Time `json:"ended_at,omitempty"`
-}
 
 // Task represents a command to be executed
 type Task struct {
-	TaskData
+	types.TaskData
 	mu sync.RWMutex
 }
 
 // NewTask creates a new task
 func NewTask(tool, command string, args []string) *Task {
 	return &Task{
-		TaskData: TaskData{
+		TaskData: types.TaskData{
 			ID:        uuid.New().String(),
 			Tool:      tool,
 			Command:   command,
 			Args:      args,
-			Status:    StatusQueued,
+			Status:    types.StatusQueued,
 			Output:    make([]string, 0),
 			CreatedAt: time.Now(),
 		},
@@ -61,15 +37,15 @@ func (t *Task) AppendOutput(line string) {
 }
 
 // SetStatus updates the task status
-func (t *Task) SetStatus(status Status) {
+func (t *Task) SetStatus(status types.Status) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.Status = status
 
 	switch status {
-	case StatusRunning:
+	case types.StatusRunning:
 		t.StartedAt = time.Now()
-	case StatusComplete, StatusFailed, StatusCanceled:
+	case types.StatusComplete, types.StatusFailed, types.StatusCanceled:
 		t.EndedAt = time.Now()
 	}
 }
@@ -82,19 +58,19 @@ func (t *Task) SetError(err string) {
 }
 
 // GetStatus returns the current status
-func (t *Task) GetStatus() Status {
+func (t *Task) GetStatus() types.Status {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.Status
 }
 
 // Clone returns a copy of the task data for safe reading
-func (t *Task) Clone() TaskData {
+func (t *Task) Clone() types.TaskData {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	// Create a copy of the task data
-	clone := TaskData{
+	clone := types.TaskData{
 		ID:        t.ID,
 		Tool:      t.Tool,
 		Command:   t.Command,

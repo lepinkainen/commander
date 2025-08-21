@@ -4,10 +4,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/lepinkainen/commander/internal/storage"
+	"github.com/lepinkainen/commander/internal/types"
 )
 
 func TestNewManager(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	if manager == nil {
 		t.Fatal("NewManager returned nil")
@@ -27,7 +31,8 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManagerCreateQueue(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	tool := "test-tool"
 	bufferSize := 10
@@ -48,7 +53,8 @@ func TestManagerCreateQueue(t *testing.T) {
 }
 
 func TestManagerAddTask(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 
 	// Create queue first
@@ -77,7 +83,8 @@ func TestManagerAddTask(t *testing.T) {
 }
 
 func TestManagerGetTask(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 
 	// Create queue and add task
@@ -105,7 +112,8 @@ func TestManagerGetTask(t *testing.T) {
 }
 
 func TestManagerGetAllTasks(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	// Add multiple tasks
 	tools := []string{"tool1", "tool2", "tool3"}
@@ -125,7 +133,8 @@ func TestManagerGetAllTasks(t *testing.T) {
 }
 
 func TestManagerGetTasksByTool(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	// Add tasks for different tools
 	tool1 := "tool1"
@@ -162,7 +171,8 @@ func TestManagerGetTasksByTool(t *testing.T) {
 }
 
 func TestManagerUpdateTaskStatus(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 
 	manager.CreateQueue(tool, 10)
@@ -172,26 +182,27 @@ func TestManagerUpdateTaskStatus(t *testing.T) {
 	}
 
 	// Update status
-	err := manager.UpdateTaskStatus(task.ID, StatusRunning)
+	err := manager.UpdateTaskStatus(task.ID, types.StatusRunning)
 	if err != nil {
 		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
 
 	// Verify status was updated
 	retrievedTask, _ := manager.GetTask(task.ID)
-	if retrievedTask.GetStatus() != StatusRunning {
+	if retrievedTask.GetStatus() != types.StatusRunning {
 		t.Error("Task status was not updated")
 	}
 
 	// Try to update non-existent task
-	err = manager.UpdateTaskStatus("non-existent", StatusRunning)
+	err = manager.UpdateTaskStatus("non-existent", types.StatusRunning)
 	if err == nil {
 		t.Error("Expected error when updating non-existent task")
 	}
 }
 
 func TestManagerAppendTaskOutput(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 
 	manager.CreateQueue(tool, 10)
@@ -221,7 +232,8 @@ func TestManagerAppendTaskOutput(t *testing.T) {
 }
 
 func TestManagerSubscribeUnsubscribe(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	// Subscribe
 	ch := manager.Subscribe()
@@ -244,7 +256,8 @@ func TestManagerSubscribeUnsubscribe(t *testing.T) {
 }
 
 func TestManagerBroadcastEvent(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	// Subscribe multiple listeners
 	ch1 := manager.Subscribe()
@@ -290,7 +303,8 @@ func TestManagerBroadcastEvent(t *testing.T) {
 }
 
 func TestManagerGetQueueStats(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 
 	// Create queues
 	tool1 := "tool1"
@@ -303,7 +317,7 @@ func TestManagerGetQueueStats(t *testing.T) {
 	if err := manager.AddTask(task1); err != nil {
 		t.Fatalf("AddTask failed: %v", err)
 	}
-	if err := manager.UpdateTaskStatus(task1.ID, StatusRunning); err != nil {
+	if err := manager.UpdateTaskStatus(task1.ID, types.StatusRunning); err != nil {
 		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
 
@@ -311,7 +325,7 @@ func TestManagerGetQueueStats(t *testing.T) {
 	if err := manager.AddTask(task2); err != nil {
 		t.Fatalf("AddTask failed: %v", err)
 	}
-	if err := manager.UpdateTaskStatus(task2.ID, StatusComplete); err != nil {
+	if err := manager.UpdateTaskStatus(task2.ID, types.StatusComplete); err != nil {
 		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
 
@@ -319,7 +333,7 @@ func TestManagerGetQueueStats(t *testing.T) {
 	if err := manager.AddTask(task3); err != nil {
 		t.Fatalf("AddTask failed: %v", err)
 	}
-	if err := manager.UpdateTaskStatus(task3.ID, StatusFailed); err != nil {
+	if err := manager.UpdateTaskStatus(task3.ID, types.StatusFailed); err != nil {
 		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
 
@@ -345,7 +359,8 @@ func TestManagerGetQueueStats(t *testing.T) {
 }
 
 func TestManagerConcurrency(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 	manager.CreateQueue(tool, 100)
 
@@ -392,7 +407,8 @@ func TestManagerConcurrency(t *testing.T) {
 }
 
 func TestQueueFullError(t *testing.T) {
-	manager := NewManager()
+	mockRepo := storage.NewMockRepository()
+	manager := NewManager(mockRepo)
 	tool := "test-tool"
 	bufferSize := 2
 

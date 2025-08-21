@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lepinkainen/commander/internal/executor"
 	"github.com/lepinkainen/commander/internal/task"
+	"github.com/lepinkainen/commander/internal/types"
 	"github.com/rs/cors"
 )
 
@@ -147,7 +148,7 @@ func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	taskID := vars["id"]
 
-	if err := s.manager.UpdateTaskStatus(taskID, task.StatusCanceled); err != nil {
+	if err := s.manager.UpdateTaskStatus(taskID, types.StatusCanceled); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
