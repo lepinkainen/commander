@@ -184,35 +184,35 @@ func (m *Manager) broadcastEvent(event TaskEvent) {
 
 // GetQueueStats returns statistics about all queues
 func (m *Manager) GetQueueStats() map[string]QueueStats {
-m.mu.RLock()
-defer m.mu.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-stats := make(map[string]QueueStats)
-for tool, queue := range m.queues {
-// Create a local variable that we can modify
-toolStats := QueueStats{
-Tool:    tool,
- Pending: len(queue),
-}
+	stats := make(map[string]QueueStats)
+	for tool, queue := range m.queues {
+		// Create a local variable that we can modify
+		toolStats := QueueStats{
+			Tool:    tool,
+			Pending: len(queue),
+		}
 
-// Count running and completed tasks
-for _, task := range m.tasks {
-if task.Tool == tool {
-switch task.GetStatus() {
-case StatusRunning:
- toolStats.Running++
-case StatusComplete:
- toolStats.Completed++
-case StatusFailed:
- toolStats.Failed++
- }
- }
- }
- 
- // Assign the completed stats struct to the map
+		// Count running and completed tasks
+		for _, task := range m.tasks {
+			if task.Tool == tool {
+				switch task.GetStatus() {
+				case StatusRunning:
+					toolStats.Running++
+				case StatusComplete:
+					toolStats.Completed++
+				case StatusFailed:
+					toolStats.Failed++
+				}
+			}
+		}
+
+		// Assign the completed stats struct to the map
 		stats[tool] = toolStats
 	}
-	
+
 	return stats
 }
 

@@ -18,8 +18,8 @@ const (
 	StatusCanceled Status = "canceled"
 )
 
-// Task represents a command to be executed
-type Task struct {
+// TaskData represents the data fields of a task (without mutex)
+type TaskData struct {
 	ID        string    `json:"id"`
 	Tool      string    `json:"tool"`
 	Command   string    `json:"command"`
@@ -30,19 +30,26 @@ type Task struct {
 	CreatedAt time.Time `json:"created_at"`
 	StartedAt time.Time `json:"started_at,omitempty"`
 	EndedAt   time.Time `json:"ended_at,omitempty"`
-	mu        sync.RWMutex
+}
+
+// Task represents a command to be executed
+type Task struct {
+	TaskData
+	mu sync.RWMutex
 }
 
 // NewTask creates a new task
 func NewTask(tool, command string, args []string) *Task {
 	return &Task{
-		ID:        uuid.New().String(),
-		Tool:      tool,
-		Command:   command,
-		Args:      args,
-		Status:    StatusQueued,
-		Output:    make([]string, 0),
-		CreatedAt: time.Now(),
+		TaskData: TaskData{
+			ID:        uuid.New().String(),
+			Tool:      tool,
+			Command:   command,
+			Args:      args,
+			Status:    StatusQueued,
+			Output:    make([]string, 0),
+			CreatedAt: time.Now(),
+		},
 	}
 }
 
@@ -58,7 +65,7 @@ func (t *Task) SetStatus(status Status) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.Status = status
-	
+
 	switch status {
 	case StatusRunning:
 		t.StartedAt = time.Now()
@@ -81,16 +88,27 @@ func (t *Task) GetStatus() Status {
 	return t.Status
 }
 
-// Clone returns a copy of the task for safe reading
-func (t *Task) Clone() Task {
+// Clone returns a copy of the task data for safe reading
+func (t *Task) Clone() TaskData {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
-	clone := *t
-	clone.Output = make([]string, len(t.Output))
+
+	// Create a copy of the task data
+	clone := TaskData{
+		ID:        t.ID,
+		Tool:      t.Tool,
+		Command:   t.Command,
+		Args:      make([]string, len(t.Args)),
+		Status:    t.Status,
+		Output:    make([]string, len(t.Output)),
+		Error:     t.Error,
+		CreatedAt: t.CreatedAt,
+		StartedAt: t.StartedAt,
+		EndedAt:   t.EndedAt,
+	}
+
 	copy(clone.Output, t.Output)
-	clone.Args = make([]string, len(t.Args))
 	copy(clone.Args, t.Args)
-	
+
 	return clone
 }
