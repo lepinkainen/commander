@@ -159,3 +159,5 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 - Add tools via `config/tools.json` modification
 - WebSocket protocol: `{"task_id": "...", "type": "output|status|created", "data": "..."}`
 - API endpoints: RESTful `/api/tasks`, `/api/tools`, `/api/stats` + WebSocket `/api/ws`
+
+- Assume the server is already running in watch-mode, always updating when backend code changes
