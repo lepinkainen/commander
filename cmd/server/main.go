@@ -1,0 +1,78 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/lepinkainen/commander/internal/api"
+	"github.com/lepinkainen/commander/internal/executor"
+	"github.com/lepinkainen/commander/internal/task"
+)
+
+func main() {
+	var (
+		addr       = flag.String("addr", ":8080", "Server address")
+		workers    = flag.Int("workers", 4, "Number of workers per tool")
+		configPath = flag.String("config", "./config/tools.json", "Path to tools configuration")
+	)
+	flag.Parse()
+
+	// Create task manager
+	manager := task.NewManager()
+
+	// Create executor with configured tools
+	exec, err := executor.NewExecutor(*configPath, *workers, manager)
+	if err != nil {
+		log.Fatalf("Failed to create executor: %v", err)
+	}
+
+	// Start the executor
+	if err := exec.Start(); err != nil {
+		log.Fatalf("Failed to start executor: %v", err)
+	}
+
+	// Create API server
+	server := api.NewServer(manager, exec)
+
+	// Setup HTTP server
+	httpServer := &http.Server{
+		Addr:         *addr,
+		Handler:      server.Router(),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Starting server on %s", *addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	// Graceful shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	exec.Stop()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
+}

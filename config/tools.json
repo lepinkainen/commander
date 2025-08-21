@@ -1,0 +1,58 @@
+{
+  "tools": [
+    {
+      "name": "yt-dlp",
+      "command": "yt-dlp",
+      "description": "Download videos from YouTube and other platforms",
+      "workers": 2,
+      "default_args": [
+        "--no-warnings",
+        "--progress"
+      ]
+    },
+    {
+      "name": "gallery-dl",
+      "command": "gallery-dl",
+      "description": "Download image galleries from various websites",
+      "workers": 2,
+      "default_args": []
+    },
+    {
+      "name": "wget",
+      "command": "wget",
+      "description": "Download files from the web",
+      "workers": 4,
+      "default_args": [
+        "--progress=bar:force"
+      ]
+    },
+    {
+      "name": "ffmpeg",
+      "command": "ffmpeg",
+      "description": "Convert and process media files",
+      "workers": 2,
+      "default_args": [
+        "-hide_banner"
+      ]
+    },
+    {
+      "name": "curl",
+      "command": "curl",
+      "description": "Transfer data from or to a server",
+      "workers": 4,
+      "default_args": [
+        "--progress-bar"
+      ]
+    },
+    {
+      "name": "rsync",
+      "command": "rsync",
+      "description": "Synchronize files and directories",
+      "workers": 2,
+      "default_args": [
+        "--progress",
+        "-av"
+      ]
+    }
+  ]
+}
