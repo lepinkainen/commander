@@ -77,3 +77,6 @@ debug.test
 
 # Data files
 data/
+
+# PPlaywright temp files
+.playwright-mcp/

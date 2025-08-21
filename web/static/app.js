@@ -51,15 +51,25 @@ class Commander {
         try {
             const response = await fetch('/api/tools');
             const tools = await response.json();
+            const toolButtonsContainer = document.getElementById('tool-buttons');
+            const toolInput = document.getElementById('tool');
             
-            const select = document.getElementById('tool');
-            select.innerHTML = '';
+            toolButtonsContainer.innerHTML = '';
             
-            tools.forEach(tool => {
-                const option = document.createElement('option');
-                option.value = tool.name;
-                option.textContent = `${tool.name} - ${tool.description}`;
-                select.appendChild(option);
+            tools.forEach((tool, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'tool-btn';
+                button.textContent = tool.name;
+                button.dataset.tool = tool.name;
+                button.title = tool.description;
+                
+                toolButtonsContainer.appendChild(button);
+
+                if (index === 0) {
+                    button.classList.add('active');
+                    toolInput.value = tool.name;
+                }
             });
         } catch (error) {
             console.error('Failed to load tools:', error);
@@ -258,6 +268,15 @@ class Commander {
             if (e.target.classList.contains('cancel-btn')) {
                 const taskId = e.target.dataset.taskId;
                 this.cancelTask(taskId);
+            }
+        });
+
+        // Event delegation for tool buttons
+        document.getElementById('tool-buttons').addEventListener('click', (e) => {
+            if (e.target.classList.contains('tool-btn')) {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                document.getElementById('tool').value = e.target.dataset.tool;
             }
         });
     }
