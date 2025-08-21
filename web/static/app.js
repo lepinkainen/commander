@@ -4,10 +4,12 @@ class Commander {
         this.ws = null;
         this.tasks = new Map();
         this.currentFilter = 'all';
+        this.currentTheme = localStorage.getItem('commander-theme') || 'default';
         this.init();
     }
 
     async init() {
+        this.initTheme();
         await this.loadTools();
         await this.loadTasks();
         await this.loadStats();
@@ -16,6 +18,33 @@ class Commander {
         
         // Refresh stats every 5 seconds
         setInterval(() => this.loadStats(), 5000);
+    }
+
+    initTheme() {
+        // Apply saved theme
+        document.body.setAttribute('data-theme', this.currentTheme);
+        
+        // Update theme selector UI
+        document.querySelectorAll('.theme-icon').forEach(icon => {
+            icon.classList.remove('active');
+            if (icon.dataset.theme === this.currentTheme) {
+                icon.classList.add('active');
+            }
+        });
+    }
+
+    switchTheme(themeName) {
+        this.currentTheme = themeName;
+        document.body.setAttribute('data-theme', themeName);
+        localStorage.setItem('commander-theme', themeName);
+        
+        // Update theme selector UI
+        document.querySelectorAll('.theme-icon').forEach(icon => {
+            icon.classList.remove('active');
+            if (icon.dataset.theme === themeName) {
+                icon.classList.add('active');
+            }
+        });
     }
 
     async loadTools() {
@@ -212,6 +241,14 @@ class Commander {
                 e.target.classList.add('active');
                 this.currentFilter = e.target.dataset.filter;
                 this.renderTasks();
+            });
+        });
+
+        // Theme selector buttons
+        document.querySelectorAll('.theme-icon').forEach(icon => {
+            icon.addEventListener('click', (e) => {
+                const themeName = e.target.dataset.theme;
+                this.switchTheme(themeName);
             });
         });
     }

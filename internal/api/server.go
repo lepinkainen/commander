@@ -103,7 +103,9 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(task)
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // getTasks returns all tasks
@@ -118,7 +120,9 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tasks)
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // getTask returns a specific task
@@ -133,7 +137,9 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(task)
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // cancelTask cancels a task
@@ -147,20 +153,26 @@ func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "canceled"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "canceled"}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // getTools returns available tools
 func (s *Server) getTools(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.executor.GetTools())
+	if err := json.NewEncoder(w).Encode(s.executor.GetTools()); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // getStats returns queue statistics
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 	stats := s.manager.GetQueueStats()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleWebSocket handles WebSocket connections for real-time updates

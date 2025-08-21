@@ -23,29 +23,34 @@ A web-based interface for managing and monitoring CLI tools with parallel execut
 ### Installation
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/lepinkainen/commander.git
 cd commander
 ```
 
 2. **Install development tools:**
+
 ```bash
 task install-tools
 ```
 
 3. **Build and run:**
+
 ```bash
 task build
 task run
 ```
 
 4. **Or run in development mode:**
+
 ```bash
 task dev
 ```
 
 5. **Open the web interface:**
-```
+
+```plain
 http://localhost:8080
 ```
 
@@ -71,7 +76,7 @@ task docker-run     # Run Docker container
 
 ### Project Structure
 
-```
+```plain
 commander/
 ├── cmd/server/         # Main application entry point
 ├── internal/
@@ -90,6 +95,7 @@ commander/
 ### Configuration
 
 Tools are configured in `config/tools.json`. Each tool can have:
+
 - `name`: Tool identifier
 - `command`: The actual command to execute
 - `description`: Human-readable description
@@ -97,6 +103,7 @@ Tools are configured in `config/tools.json`. Each tool can have:
 - `default_args`: Arguments always passed to the command
 
 Example:
+
 ```json
 {
   "name": "yt-dlp",
@@ -124,6 +131,7 @@ Example:
 - `-config` : Path to tools configuration (default: "./config/tools.json")
 
 Example:
+
 ```bash
 ./build/commander -addr :3000 -workers 8
 ```
@@ -131,6 +139,7 @@ Example:
 ## Testing
 
 Run tests with coverage:
+
 ```bash
 task test           # Run tests
 task test-ci        # Run tests with coverage for CI
@@ -140,12 +149,14 @@ task coverage       # Generate HTML coverage report
 ## Docker Support
 
 Build and run with Docker:
+
 ```bash
 task docker-build   # Build Docker image
 task docker-run     # Run container
 ```
 
 Or manually:
+
 ```bash
 docker build -t commander:latest .
 docker run -p 8080:8080 -v $(pwd)/config:/app/config commander:latest
@@ -154,6 +165,7 @@ docker run -p 8080:8080 -v $(pwd)/config:/app/config commander:latest
 ## CI/CD
 
 The project includes GitHub Actions workflow that:
+
 - Runs tests with coverage
 - Performs linting with golangci-lint
 - Builds for multiple platforms (Linux, macOS, Windows)
@@ -167,6 +179,7 @@ The project includes GitHub Actions workflow that:
 3. Restart the server
 
 Example for adding `aria2c`:
+
 ```json
 {
   "name": "aria2c",

@@ -5,6 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Commander - CLI Tool Manager</title>
     <style>
+        :root {
+            --primary-bg: #0a0a0a;
+            --secondary-bg: #1a1a1a;
+            --tertiary-bg: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaa;
+            --text-muted: #666;
+            --accent-color: #667eea;
+            --accent-secondary: #764ba2;
+            --border-color: #333;
+            --border-hover: #667eea;
+            --terminal-green: #00ff00;
+            --terminal-bg: #001100;
+            --terminal-text: #00cc00;
+            --terminal-bright: #00ff00;
+        }
+
+        [data-theme="terminal"] {
+            --primary-bg: #000000;
+            --secondary-bg: #001100;
+            --tertiary-bg: #002200;
+            --text-primary: #00ff00;
+            --text-secondary: #00cc00;
+            --text-muted: #008800;
+            --accent-color: #00aa00;
+            --accent-secondary: #008800;
+            --border-color: #004400;
+            --border-hover: #00cc00;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,10 +42,54 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #0a0a0a;
-            color: #e0e0e0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: var(--primary-bg);
+            color: var(--text-primary);
             line-height: 1.6;
+            position: relative;
+        }
+
+        body[data-theme="terminal"]::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 0, 0.03) 2px,
+                    rgba(0, 255, 0, 0.03) 4px
+                );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        body[data-theme="terminal"]::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(
+                    ellipse at center,
+                    rgba(0, 255, 0, 0.1) 0%,
+                    rgba(0, 255, 0, 0.05) 40%,
+                    transparent 70%
+                );
+            pointer-events: none;
+            z-index: 999;
+            animation: flicker 0.15s infinite linear alternate;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
         }
 
         .container {
@@ -25,9 +99,54 @@
         }
 
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-secondary) 100%);
             padding: 30px 0;
             margin-bottom: 30px;
+            position: relative;
+        }
+
+        .theme-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1001;
+        }
+
+        .theme-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-icon:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .theme-icon.active {
+            border-color: #ffffff;
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .theme-icon.default {
+            color: #667eea;
+        }
+
+        .theme-icon.terminal {
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
         }
 
         h1 {
@@ -45,15 +164,15 @@
         }
 
         .stat-card {
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
             text-align: center;
         }
 
         .stat-card h3 {
-            color: #888;
+            color: var(--text-muted);
             font-size: 0.9em;
             text-transform: uppercase;
             margin-bottom: 10px;
@@ -62,12 +181,12 @@
         .stat-value {
             font-size: 2em;
             font-weight: bold;
-            color: #667eea;
+            color: var(--accent-color);
         }
 
         .create-task {
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 30px;
@@ -80,27 +199,29 @@
         label {
             display: block;
             margin-bottom: 5px;
-            color: #aaa;
+            color: var(--text-secondary);
             font-size: 0.9em;
         }
 
         select, input, button {
             width: 100%;
             padding: 10px;
-            background: #0a0a0a;
-            border: 1px solid #444;
+            background: var(--primary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
-            color: #e0e0e0;
+            color: var(--text-primary);
             font-size: 14px;
+            font-family: inherit;
         }
 
         select:focus, input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--border-hover);
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
         }
 
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-secondary) 100%);
             border: none;
             color: white;
             cursor: pointer;
@@ -118,8 +239,8 @@
         }
 
         .tasks-container {
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
         }
@@ -132,23 +253,24 @@
 
         .filter-btn {
             padding: 8px 16px;
-            background: #2a2a2a;
-            border: 1px solid #444;
+            background: var(--tertiary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
-            color: #aaa;
+            color: var(--text-secondary);
             cursor: pointer;
             font-size: 0.9em;
             transition: all 0.2s;
+            font-family: inherit;
         }
 
         .filter-btn:hover {
-            background: #3a3a3a;
-            color: #fff;
+            background: var(--border-color);
+            color: var(--text-primary);
         }
 
         .filter-btn.active {
-            background: #667eea;
-            border-color: #667eea;
+            background: var(--accent-color);
+            border-color: var(--accent-color);
             color: white;
         }
 
@@ -158,8 +280,8 @@
         }
 
         .task-item {
-            background: #0a0a0a;
-            border: 1px solid #333;
+            background: var(--primary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 15px;
             margin-bottom: 15px;
@@ -167,7 +289,7 @@
         }
 
         .task-item:hover {
-            border-color: #667eea;
+            border-color: var(--border-hover);
             box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);
         }
 
@@ -179,7 +301,7 @@
         }
 
         .task-tool {
-            background: #667eea;
+            background: var(--accent-color);
             color: white;
             padding: 2px 8px;
             border-radius: 4px;
@@ -207,20 +329,20 @@
 
         .task-command {
             font-family: 'Monaco', 'Courier New', monospace;
-            background: #2a2a2a;
+            background: var(--tertiary-bg);
             padding: 8px;
             border-radius: 4px;
             margin: 10px 0;
             font-size: 0.9em;
-            color: #4fc3f7;
+            color: var(--accent-color);
             word-break: break-all;
         }
 
         .task-output {
             max-height: 200px;
             overflow-y: auto;
-            background: #0a0a0a;
-            border: 1px solid #333;
+            background: var(--primary-bg);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             padding: 10px;
             margin-top: 10px;
@@ -265,21 +387,25 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: #1a1a1a;
+            background: var(--secondary-bg);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #444;
+            background: var(--border-color);
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #555;
+            background: var(--text-muted);
         }
     </style>
 </head>
 <body>
     <header>
+        <div class="theme-selector">
+            <div class="theme-icon default active" data-theme="default" title="Default Theme">🎨</div>
+            <div class="theme-icon terminal" data-theme="terminal" title="Terminal Theme">💻</div>
+        </div>
         <h1>🚀 Commander</h1>
     </header>
 

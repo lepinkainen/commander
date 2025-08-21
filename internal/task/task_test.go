@@ -39,21 +39,21 @@ func TestNewTask(t *testing.T) {
 
 func TestTaskAppendOutput(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
-	
+
 	output1 := "Line 1"
 	output2 := "Line 2"
-	
+
 	task.AppendOutput(output1)
 	task.AppendOutput(output2)
-	
+
 	if len(task.Output) != 2 {
 		t.Errorf("Expected 2 output lines, got %d", len(task.Output))
 	}
-	
+
 	if task.Output[0] != output1 {
 		t.Errorf("Expected first output %s, got %s", output1, task.Output[0])
 	}
-	
+
 	if task.Output[1] != output2 {
 		t.Errorf("Expected second output %s, got %s", output2, task.Output[1])
 	}
@@ -61,7 +61,7 @@ func TestTaskAppendOutput(t *testing.T) {
 
 func TestTaskSetStatus(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
-	
+
 	// Test setting to running
 	task.SetStatus(StatusRunning)
 	if task.Status != StatusRunning {
@@ -70,7 +70,7 @@ func TestTaskSetStatus(t *testing.T) {
 	if task.StartedAt.IsZero() {
 		t.Error("Expected StartedAt to be set when status is running")
 	}
-	
+
 	// Test setting to complete
 	task.SetStatus(StatusComplete)
 	if task.Status != StatusComplete {
@@ -83,10 +83,10 @@ func TestTaskSetStatus(t *testing.T) {
 
 func TestTaskSetError(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
-	
+
 	errorMsg := "Test error message"
 	task.SetError(errorMsg)
-	
+
 	if task.Error != errorMsg {
 		t.Errorf("Expected error %s, got %s", errorMsg, task.Error)
 	}
@@ -94,12 +94,12 @@ func TestTaskSetError(t *testing.T) {
 
 func TestTaskGetStatus(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
-	
+
 	status := task.GetStatus()
 	if status != StatusQueued {
 		t.Errorf("Expected status %s, got %s", StatusQueued, status)
 	}
-	
+
 	task.SetStatus(StatusRunning)
 	status = task.GetStatus()
 	if status != StatusRunning {
@@ -112,9 +112,9 @@ func TestTaskClone(t *testing.T) {
 	task.SetStatus(StatusRunning)
 	task.AppendOutput("output line")
 	task.SetError("test error")
-	
+
 	clone := task.Clone()
-	
+
 	// Verify all fields are copied
 	if clone.ID != task.ID {
 		t.Error("Clone ID doesn't match")
@@ -137,7 +137,7 @@ func TestTaskClone(t *testing.T) {
 	if len(clone.Output) != len(task.Output) {
 		t.Error("Clone Output length doesn't match")
 	}
-	
+
 	// Verify slices are independent copies
 	if len(clone.Args) > 0 {
 		clone.Args[0] = "modified"
@@ -145,7 +145,7 @@ func TestTaskClone(t *testing.T) {
 			t.Error("Modifying clone Args affected original")
 		}
 	}
-	
+
 	if len(clone.Output) > 0 {
 		clone.Output[0] = "modified"
 		if task.Output[0] == "modified" {
@@ -166,7 +166,7 @@ func TestStatusValues(t *testing.T) {
 		{StatusFailed, "failed"},
 		{StatusCanceled, "canceled"},
 	}
-	
+
 	for _, test := range tests {
 		if string(test.status) != test.expected {
 			t.Errorf("Status %s has unexpected value: %s", test.expected, test.status)
@@ -176,10 +176,10 @@ func TestStatusValues(t *testing.T) {
 
 func TestTaskConcurrency(t *testing.T) {
 	task := NewTask("test", "echo", []string{})
-	
+
 	// Test concurrent access to task methods
 	done := make(chan bool, 3)
-	
+
 	// Goroutine 1: Append output
 	go func() {
 		for i := 0; i < 100; i++ {
@@ -187,7 +187,7 @@ func TestTaskConcurrency(t *testing.T) {
 		}
 		done <- true
 	}()
-	
+
 	// Goroutine 2: Get status
 	go func() {
 		for i := 0; i < 100; i++ {
@@ -195,7 +195,7 @@ func TestTaskConcurrency(t *testing.T) {
 		}
 		done <- true
 	}()
-	
+
 	// Goroutine 3: Clone task
 	go func() {
 		for i := 0; i < 100; i++ {
@@ -203,7 +203,7 @@ func TestTaskConcurrency(t *testing.T) {
 		}
 		done <- true
 	}()
-	
+
 	// Wait for all goroutines with timeout
 	timeout := time.After(2 * time.Second)
 	for i := 0; i < 3; i++ {

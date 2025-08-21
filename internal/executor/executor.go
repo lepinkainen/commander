@@ -105,14 +105,18 @@ func createDefaultExecutor(configPath string, defaultWorkers int, manager *task.
 	}
 
 	// Save default config
-	os.MkdirAll("./config", 0755)
+	if err := os.MkdirAll("./config", 0o755); err != nil {
+		log.Printf("Warning: failed to create config directory: %v", err)
+	}
 	file, err := os.Create(configPath)
 	if err != nil {
 		log.Printf("Warning: failed to save default config: %v", err)
 	} else {
 		encoder := json.NewEncoder(file)
 		encoder.SetIndent("", "  ")
-		encoder.Encode(config)
+		if err := encoder.Encode(config); err != nil {
+			log.Printf("Warning: failed to encode config: %v", err)
+		}
 		file.Close()
 	}
 
@@ -178,31 +182,41 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	log.Printf("Executing task %s with %s", t.ID, tool.Name)
 
 	// Update status to running
-	e.manager.UpdateTaskStatus(t.ID, task.StatusRunning)
+	if err := e.manager.UpdateTaskStatus(t.ID, task.StatusRunning); err != nil {
+		log.Printf("Failed to update task status to running: %v", err)
+	}
 
 	// Prepare command
-	args := append(tool.Args, t.Args...)
+	args := make([]string, len(tool.Args)+len(t.Args))
+	copy(args, tool.Args)
+	copy(args[len(tool.Args):], t.Args)
 	cmd := exec.CommandContext(e.ctx, t.Command, args...)
 
 	// Get stdout and stderr pipes
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.SetError(fmt.Sprintf("Failed to create stdout pipe: %v", err))
-		e.manager.UpdateTaskStatus(t.ID, task.StatusFailed)
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+			log.Printf("Failed to update task status: %v", updateErr)
+		}
 		return
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.SetError(fmt.Sprintf("Failed to create stderr pipe: %v", err))
-		e.manager.UpdateTaskStatus(t.ID, task.StatusFailed)
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+			log.Printf("Failed to update task status: %v", updateErr)
+		}
 		return
 	}
 
 	// Start the command
-	if err := cmd.Start(); err != nil {
+	if err = cmd.Start(); err != nil {
 		t.SetError(fmt.Sprintf("Failed to start command: %v", err))
-		e.manager.UpdateTaskStatus(t.ID, task.StatusFailed)
+		if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+			log.Printf("Failed to update task status: %v", updateErr)
+		}
 		return
 	}
 
@@ -230,15 +244,21 @@ func (e *Executor) executeTask(tool Tool, t *task.Task) {
 	if err != nil {
 		if e.ctx.Err() != nil {
 			// Context was canceled
-			e.manager.UpdateTaskStatus(t.ID, task.StatusCanceled)
+			if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusCanceled); updateErr != nil {
+				log.Printf("Failed to update task status: %v", updateErr)
+			}
 		} else {
 			t.SetError(fmt.Sprintf("Command failed: %v", err))
-			e.manager.UpdateTaskStatus(t.ID, task.StatusFailed)
+			if updateErr := e.manager.UpdateTaskStatus(t.ID, task.StatusFailed); updateErr != nil {
+				log.Printf("Failed to update task status: %v", updateErr)
+			}
 		}
 		return
 	}
 
-	e.manager.UpdateTaskStatus(t.ID, task.StatusComplete)
+	if err := e.manager.UpdateTaskStatus(t.ID, task.StatusComplete); err != nil {
+		log.Printf("Failed to update task status to complete: %v", err)
+	}
 	log.Printf("Task %s completed successfully", t.ID)
 }
 
@@ -250,7 +270,9 @@ func (e *Executor) readOutput(taskID string, pipe io.Reader, isError bool) {
 		if isError {
 			line = "[ERROR] " + line
 		}
-		e.manager.AppendTaskOutput(taskID, line)
+		if err := e.manager.AppendTaskOutput(taskID, line); err != nil {
+			log.Printf("Failed to append task output: %v", err)
+		}
 	}
 }
 
