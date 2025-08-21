@@ -1,0 +1,144 @@
+# Taskfile for Commander project
+# https://taskfile.dev/
+version: '3'
+
+vars:
+  BUILD_DIR: build
+  PROJECT_NAME: commander
+  VERSION: 1.0.0
+  MAIN_PATH: ./cmd/server
+
+tasks:
+  # Default task
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Core build task - depends on tests and linting
+  build:
+    desc: Build the project
+    deps: [test, lint]
+    cmds:
+      - task: build-go
+
+  # Linux-specific build
+  build-linux:
+    desc: Build for Linux
+    deps: [test, lint]
+    env:
+      GOOS: linux
+      GOARCH: amd64
+    cmds:
+      - task: build-go
+
+  # CI build with proper test coverage and linting
+  build-ci:
+    desc: Build for CI/CD
+    deps: [test-ci, lint]
+    cmds:
+      - task: build-go
+
+  # Test tasks
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  test-ci:
+    desc: Run tests with coverage for CI
+    cmds:
+      - go test -tags=ci -cover -coverprofile=coverage.out -v ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  # Linting tasks
+  lint:
+    desc: Lint code
+    cmds:
+      - goimports -w .
+      - go vet ./...
+      - golangci-lint run
+
+  # Format code
+  fmt:
+    desc: Format code
+    cmds:
+      - goimports -w .
+
+  # Clean build artifacts
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f coverage.out coverage.html
+      - mkdir -p {{.BUILD_DIR}}
+
+  # Go-specific build task
+  build-go:
+    desc: Build Go binary
+    cmds:
+      - goimports -w .
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.PROJECT_NAME}} {{.MAIN_PATH}}
+
+  # Development tasks
+  dev:
+    desc: Start development server
+    cmds:
+      - go run {{.MAIN_PATH}}/main.go
+
+  dev-watch:
+    desc: Start development server with auto-reload (requires air)
+    cmds:
+      - air
+
+  # Install development dependencies
+  install-tools:
+    desc: Install required development tools
+    cmds:
+      - go install golang.org/x/tools/cmd/goimports@latest
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install github.com/cosmtrek/air@latest
+      - echo "Development tools installed successfully"
+
+  # Run the application
+  run:
+    desc: Run the application
+    deps: [build]
+    cmds:
+      - ./{{.BUILD_DIR}}/{{.PROJECT_NAME}}
+
+  # Docker tasks
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.PROJECT_NAME}}:{{.VERSION}} .
+      - docker tag {{.PROJECT_NAME}}:{{.VERSION}} {{.PROJECT_NAME}}:latest
+
+  docker-run:
+    desc: Run Docker container
+    cmds:
+      - docker run -p 8080:8080 -v $(pwd)/config:/app/config {{.PROJECT_NAME}}:latest
+
+  # Update dependencies
+  mod-update:
+    desc: Update Go modules
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+      - go mod verify
+
+  # Security scan
+  security:
+    desc: Run security scan
+    cmds:
+      - go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - gosec ./...
+
+  # Generate test coverage report
+  coverage:
+    desc: Generate test coverage report
+    cmds:
+      - go test -cover -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
