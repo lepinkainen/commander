@@ -41,6 +41,29 @@ func NewServer(manager *task.Manager, exec *executor.Executor, fileManager *file
 	}
 }
 
+// loggingMiddleware logs all incoming requests, skipping specified endpoints
+func loggingMiddleware(next http.Handler) http.Handler {
+	// List of endpoints to exclude from logging
+	ignoredEndpoints := []string{"/api/stats"}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if the request URI is in the ignored list
+		for _, endpoint := range ignoredEndpoints {
+			if r.RequestURI == endpoint {
+				// If it is, call the next handler and return without logging.
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// If the endpoint is not ignored, log the request.
+		log.Printf("Request: %s %s", r.Method, r.RequestURI)
+
+		// Call the next handler.
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Router creates and configures the HTTP router
 func (s *Server) Router() http.Handler {
 	router := mux.NewRouter()
