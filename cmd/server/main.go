@@ -12,6 +12,7 @@ import (
 
 	"github.com/lepinkainen/commander/internal/api"
 	"github.com/lepinkainen/commander/internal/executor"
+	"github.com/lepinkainen/commander/internal/files"
 	"github.com/lepinkainen/commander/internal/storage"
 	"github.com/lepinkainen/commander/internal/task"
 )
@@ -44,6 +45,9 @@ func main() {
 	// Create task manager
 	manager := task.NewManager(repo)
 
+	// Create file manager
+	fileManager := files.NewManager(repo)
+
 	// Create executor with configured tools
 	exec, err := executor.NewExecutor(*configPath, *workers, manager)
 	if err != nil {
@@ -56,7 +60,7 @@ func main() {
 	}
 
 	// Create API server
-	server := api.NewServer(manager, exec)
+	server := api.NewServer(manager, exec, fileManager)
 
 	// Setup HTTP server
 	httpServer := &http.Server{

@@ -13,7 +13,7 @@ import (
 	"github.com/lepinkainen/commander/internal/types"
 )
 
-// SQLiteRepository implements TaskRepository using SQLite
+// SQLiteRepository implements TaskRepository and FileRepository using SQLite
 type SQLiteRepository struct {
 	db *sql.DB
 }
@@ -57,9 +57,46 @@ func (r *SQLiteRepository) createTables() error {
 		FOREIGN KEY (task_id) REFERENCES tasks (id)
 	);
 
+	CREATE TABLE IF NOT EXISTS download_directories (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		path TEXT NOT NULL,
+		tool_name TEXT,
+		default_dir BOOLEAN DEFAULT false,
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY (tool_name) REFERENCES tools(name)
+	);
+
+	CREATE TABLE IF NOT EXISTS files (
+		id TEXT PRIMARY KEY,
+		filename TEXT NOT NULL,
+		file_path TEXT NOT NULL,
+		directory_id TEXT NOT NULL,
+		task_id TEXT,
+		file_size INTEGER NOT NULL,
+		mime_type TEXT,
+		created_at DATETIME NOT NULL,
+		accessed_at DATETIME NOT NULL,
+		FOREIGN KEY (directory_id) REFERENCES download_directories(id),
+		FOREIGN KEY (task_id) REFERENCES tasks(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS file_tags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		file_id TEXT NOT NULL,
+		tag TEXT NOT NULL,
+		FOREIGN KEY (file_id) REFERENCES files(id),
+		UNIQUE(file_id, tag)
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_tasks_tool ON tasks(tool);
 	CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 	CREATE INDEX IF NOT EXISTS idx_task_outputs_task_id ON task_outputs(task_id);
+	CREATE INDEX IF NOT EXISTS idx_files_directory_id ON files(directory_id);
+	CREATE INDEX IF NOT EXISTS idx_files_task_id ON files(task_id);
+	CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_files_path ON files(file_path);
+	CREATE INDEX IF NOT EXISTS idx_file_tags_file_id ON file_tags(file_id);
 	`
 
 	_, err := r.db.Exec(schema)
@@ -355,4 +392,365 @@ func (r *SQLiteRepository) AppendOutput(ctx context.Context, taskID string, outp
 // Close closes the database connection
 func (r *SQLiteRepository) Close() error {
 	return r.db.Close()
+}
+
+// Directory operations
+
+// CreateDirectory adds a new directory to storage
+func (r *SQLiteRepository) CreateDirectory(ctx context.Context, dir *types.Directory) error {
+	query := `
+		INSERT INTO download_directories (id, name, path, tool_name, default_dir, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+	_, err := r.db.ExecContext(ctx, query, dir.ID, dir.Name, dir.Path, dir.ToolName, dir.DefaultDir, dir.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+	return nil
+}
+
+// GetDirectory retrieves a directory by its ID
+func (r *SQLiteRepository) GetDirectory(ctx context.Context, id string) (*types.Directory, error) {
+	query := `
+		SELECT id, name, path, tool_name, default_dir, created_at
+		FROM download_directories WHERE id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, id)
+
+	var dir types.Directory
+	var toolName sql.NullString
+
+	err := row.Scan(&dir.ID, &dir.Name, &dir.Path, &toolName, &dir.DefaultDir, &dir.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("directory %s not found", id)
+		}
+		return nil, fmt.Errorf("failed to get directory: %w", err)
+	}
+
+	if toolName.Valid {
+		dir.ToolName = &toolName.String
+	}
+
+	return &dir, nil
+}
+
+// ListDirectories retrieves all directories
+func (r *SQLiteRepository) ListDirectories(ctx context.Context) ([]*types.Directory, error) {
+	query := `
+		SELECT id, name, path, tool_name, default_dir, created_at
+		FROM download_directories ORDER BY name
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list directories: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
+
+	var directories []*types.Directory
+	for rows.Next() {
+		var dir types.Directory
+		var toolName sql.NullString
+
+		err := rows.Scan(&dir.ID, &dir.Name, &dir.Path, &toolName, &dir.DefaultDir, &dir.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan directory: %w", err)
+		}
+
+		if toolName.Valid {
+			dir.ToolName = &toolName.String
+		}
+
+		directories = append(directories, &dir)
+	}
+
+	return directories, nil
+}
+
+// UpdateDirectory updates an existing directory
+func (r *SQLiteRepository) UpdateDirectory(ctx context.Context, dir *types.Directory) error {
+	query := `
+		UPDATE download_directories 
+		SET name = ?, path = ?, tool_name = ?, default_dir = ?
+		WHERE id = ?
+	`
+	_, err := r.db.ExecContext(ctx, query, dir.Name, dir.Path, dir.ToolName, dir.DefaultDir, dir.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update directory: %w", err)
+	}
+	return nil
+}
+
+// DeleteDirectory removes a directory from storage
+func (r *SQLiteRepository) DeleteDirectory(ctx context.Context, id string) error {
+	query := `DELETE FROM download_directories WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete directory: %w", err)
+	}
+	return nil
+}
+
+// File operations
+
+// CreateFile adds a new file to storage
+func (r *SQLiteRepository) CreateFile(ctx context.Context, file *types.File) error {
+	query := `
+		INSERT INTO files (id, filename, file_path, directory_id, task_id, file_size, mime_type, created_at, accessed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := r.db.ExecContext(ctx, query, file.ID, file.Filename, file.FilePath, file.DirectoryID,
+		file.TaskID, file.FileSize, file.MimeType, file.CreatedAt, file.AccessedAt)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+
+	// Add tags if any
+	for _, tag := range file.Tags {
+		if err := r.AddFileTag(ctx, file.ID, tag); err != nil {
+			return fmt.Errorf("failed to add file tag: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetFile retrieves a file by its ID
+func (r *SQLiteRepository) GetFile(ctx context.Context, id string) (*types.File, error) {
+	query := `
+		SELECT id, filename, file_path, directory_id, task_id, file_size, mime_type, created_at, accessed_at
+		FROM files WHERE id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, id)
+
+	var file types.File
+	var taskID sql.NullString
+
+	err := row.Scan(&file.ID, &file.Filename, &file.FilePath, &file.DirectoryID, &taskID,
+		&file.FileSize, &file.MimeType, &file.CreatedAt, &file.AccessedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("file %s not found", id)
+		}
+		return nil, fmt.Errorf("failed to get file: %w", err)
+	}
+
+	if taskID.Valid {
+		file.TaskID = &taskID.String
+	}
+
+	// Get tags
+	tags, err := r.GetFileTags(ctx, file.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file tags: %w", err)
+	}
+	file.Tags = tags
+
+	return &file, nil
+}
+
+// ListFiles retrieves files based on filters
+func (r *SQLiteRepository) ListFiles(ctx context.Context, filters types.FileFilters) ([]*types.File, error) {
+	query := `
+		SELECT id, filename, file_path, directory_id, task_id, file_size, mime_type, created_at, accessed_at
+		FROM files
+	`
+	args := []interface{}{}
+	conditions := []string{}
+
+	if filters.DirectoryID != "" {
+		conditions = append(conditions, "directory_id = ?")
+		args = append(args, filters.DirectoryID)
+	}
+	if filters.MimeType != "" {
+		conditions = append(conditions, "mime_type = ?")
+		args = append(args, filters.MimeType)
+	}
+	if filters.MinSize > 0 {
+		conditions = append(conditions, "file_size >= ?")
+		args = append(args, filters.MinSize)
+	}
+	if filters.MaxSize > 0 {
+		conditions = append(conditions, "file_size <= ?")
+		args = append(args, filters.MaxSize)
+	}
+	if filters.CreatedFrom != nil {
+		conditions = append(conditions, "created_at >= ?")
+		args = append(args, *filters.CreatedFrom)
+	}
+	if filters.CreatedTo != nil {
+		conditions = append(conditions, "created_at <= ?")
+		args = append(args, *filters.CreatedTo)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
+
+	var files []*types.File
+	for rows.Next() {
+		var file types.File
+		var taskID sql.NullString
+
+		err := rows.Scan(&file.ID, &file.Filename, &file.FilePath, &file.DirectoryID, &taskID,
+			&file.FileSize, &file.MimeType, &file.CreatedAt, &file.AccessedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %w", err)
+		}
+
+		if taskID.Valid {
+			file.TaskID = &taskID.String
+		}
+
+		// Get tags for this file
+		tags, err := r.GetFileTags(ctx, file.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get file tags: %w", err)
+		}
+		file.Tags = tags
+
+		files = append(files, &file)
+	}
+
+	return files, nil
+}
+
+// UpdateFile updates an existing file
+func (r *SQLiteRepository) UpdateFile(ctx context.Context, file *types.File) error {
+	query := `
+		UPDATE files 
+		SET filename = ?, file_path = ?, directory_id = ?, task_id = ?, file_size = ?, mime_type = ?, accessed_at = ?
+		WHERE id = ?
+	`
+	_, err := r.db.ExecContext(ctx, query, file.Filename, file.FilePath, file.DirectoryID,
+		file.TaskID, file.FileSize, file.MimeType, file.AccessedAt, file.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update file: %w", err)
+	}
+	return nil
+}
+
+// DeleteFile removes a file from storage
+func (r *SQLiteRepository) DeleteFile(ctx context.Context, id string) error {
+	// Delete file tags first (due to foreign key constraint)
+	if _, err := r.db.ExecContext(ctx, "DELETE FROM file_tags WHERE file_id = ?", id); err != nil {
+		return fmt.Errorf("failed to delete file tags: %w", err)
+	}
+
+	// Delete the file record
+	query := `DELETE FROM files WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+	return nil
+}
+
+// File tag operations
+
+// AddFileTag adds a tag to a file
+func (r *SQLiteRepository) AddFileTag(ctx context.Context, fileID, tag string) error {
+	query := `INSERT OR IGNORE INTO file_tags (file_id, tag) VALUES (?, ?)`
+	_, err := r.db.ExecContext(ctx, query, fileID, tag)
+	if err != nil {
+		return fmt.Errorf("failed to add file tag: %w", err)
+	}
+	return nil
+}
+
+// RemoveFileTag removes a tag from a file
+func (r *SQLiteRepository) RemoveFileTag(ctx context.Context, fileID, tag string) error {
+	query := `DELETE FROM file_tags WHERE file_id = ? AND tag = ?`
+	_, err := r.db.ExecContext(ctx, query, fileID, tag)
+	if err != nil {
+		return fmt.Errorf("failed to remove file tag: %w", err)
+	}
+	return nil
+}
+
+// GetFileTags retrieves all tags for a file
+func (r *SQLiteRepository) GetFileTags(ctx context.Context, fileID string) ([]string, error) {
+	query := `SELECT tag FROM file_tags WHERE file_id = ? ORDER BY tag`
+	rows, err := r.db.QueryContext(ctx, query, fileID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file tags: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags, nil
+}
+
+// SearchFiles searches for files by filename
+func (r *SQLiteRepository) SearchFiles(ctx context.Context, query string) ([]*types.File, error) {
+	searchQuery := `
+		SELECT id, filename, file_path, directory_id, task_id, file_size, mime_type, created_at, accessed_at
+		FROM files 
+		WHERE filename LIKE ? OR file_path LIKE ?
+		ORDER BY created_at DESC
+	`
+	searchTerm := "%" + query + "%"
+	rows, err := r.db.QueryContext(ctx, searchQuery, searchTerm, searchTerm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search files: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
+
+	var files []*types.File
+	for rows.Next() {
+		var file types.File
+		var taskID sql.NullString
+
+		err := rows.Scan(&file.ID, &file.Filename, &file.FilePath, &file.DirectoryID, &taskID,
+			&file.FileSize, &file.MimeType, &file.CreatedAt, &file.AccessedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %w", err)
+		}
+
+		if taskID.Valid {
+			file.TaskID = &taskID.String
+		}
+
+		// Get tags for this file
+		tags, err := r.GetFileTags(ctx, file.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get file tags: %w", err)
+		}
+		file.Tags = tags
+
+		files = append(files, &file)
+	}
+
+	return files, nil
 }
