@@ -5,6 +5,9 @@ class Commander {
         this.tasks = new Map();
         this.currentFilter = 'running';
         this.currentTheme = localStorage.getItem('commander-theme') || 'default';
+        this.directories = [];
+        this.files = [];
+        this.selectedDirectory = null;
         this.init();
     }
 
@@ -13,6 +16,7 @@ class Commander {
         await this.loadTools();
         await this.loadTasks();
         await this.loadStats();
+        await this.loadDirectories();
         this.connectWebSocket();
         this.setupEventListeners();
         
@@ -263,6 +267,9 @@ class Commander {
             });
         });
 
+        // File management event listeners
+        this.setupFileEventListeners();
+
         // Event delegation for cancel buttons
         document.getElementById('taskList').addEventListener('click', (e) => {
             if (e.target.classList.contains('cancel-btn')) {
@@ -457,9 +464,271 @@ class Commander {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // File Management Methods
+    async loadDirectories() {
+        try {
+            const response = await fetch('/api/directories');
+            this.directories = await response.json();
+            this.renderDirectories();
+        } catch (error) {
+            console.error('Failed to load directories:', error);
+        }
+    }
+
+    renderDirectories() {
+        const container = document.getElementById('directoriesList');
+        if (!this.directories || this.directories.length === 0) {
+            container.innerHTML = '<div class="empty-state">No directories configured.<br>Click "Create Directory" to get started.</div>';
+            return;
+        }
+
+        container.innerHTML = this.directories.map(dir => `
+            <div class="directory-item ${this.selectedDirectory?.id === dir.id ? 'selected' : ''}" 
+                 data-id="${dir.id}">
+                <div class="directory-name">${this.escapeHtml(dir.name)}</div>
+                <div class="directory-path">${this.escapeHtml(dir.path)}</div>
+                <div class="directory-meta">
+                    <span>${dir.tool_name || 'All tools'}</span>
+                    <span>${dir.default_dir ? 'Default' : ''}</span>
+                </div>
+            </div>
+        `).join('');
+
+        // Add click handlers
+        container.querySelectorAll('.directory-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const dirId = item.dataset.id;
+                this.selectDirectory(dirId);
+            });
+        });
+    }
+
+    async selectDirectory(dirId) {
+        this.selectedDirectory = this.directories.find(d => d.id === dirId);
+        this.renderDirectories();
+        
+        if (this.selectedDirectory) {
+            await this.loadFiles(dirId);
+        }
+    }
+
+    async loadFiles(directoryId = null) {
+        try {
+            let url = '/api/files';
+            if (directoryId) {
+                url += `?directory_id=${directoryId}`;
+            }
+            const response = await fetch(url);
+            this.files = await response.json();
+            this.renderFiles();
+        } catch (error) {
+            console.error('Failed to load files:', error);
+        }
+    }
+
+    renderFiles() {
+        const container = document.getElementById('filesList');
+        if (!this.files || this.files.length === 0) {
+            const message = this.selectedDirectory 
+                ? 'No files found in this directory.<br>Click "Scan Directories" to discover files.'
+                : 'Select a directory to view files.';
+            container.innerHTML = `<div class="empty-state">${message}</div>`;
+            return;
+        }
+
+        container.innerHTML = this.files.map(file => `
+            <div class="file-item" data-id="${file.id}">
+                <div class="file-name">${this.escapeHtml(file.filename)}</div>
+                <div class="file-meta">Type: ${file.mime_type || 'Unknown'}</div>
+                <div class="file-meta">Size: ${this.formatFileSize(file.file_size)}</div>
+                <div class="file-meta">Created: ${new Date(file.created_at).toLocaleDateString()}</div>
+                ${file.tags && file.tags.length > 0 ? `<div class="file-meta">Tags: ${file.tags.join(', ')}</div>` : ''}
+                <div class="file-actions">
+                    <button onclick="commander.downloadFile('${file.id}')">Download</button>
+                    <button onclick="commander.deleteFile('${file.id}')" class="danger">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async createDirectory(formData) {
+        try {
+            const response = await fetch('/api/directories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: formData.get('name'),
+                    path: formData.get('path'),
+                    tool_name: formData.get('tool') || null,
+                    default_dir: formData.has('defaultDir')
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification('Directory created successfully');
+                await this.loadDirectories();
+                this.hideDirectoryModal();
+            } else {
+                throw new Error('Failed to create directory');
+            }
+        } catch (error) {
+            console.error('Failed to create directory:', error);
+            this.showNotification('Failed to create directory', true);
+        }
+    }
+
+    async scanDirectories() {
+        if (!this.selectedDirectory) {
+            this.showNotification('Please select a directory first', true);
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/directories/${this.selectedDirectory.id}/scan`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                this.showNotification('Directory scan completed');
+                await this.loadFiles(this.selectedDirectory.id);
+            } else {
+                throw new Error('Failed to scan directory');
+            }
+        } catch (error) {
+            console.error('Failed to scan directory:', error);
+            this.showNotification('Failed to scan directory', true);
+        }
+    }
+
+    async searchFiles(query) {
+        try {
+            const response = await fetch(`/api/files/search?q=${encodeURIComponent(query)}`);
+            this.files = await response.json();
+            this.renderFiles();
+        } catch (error) {
+            console.error('Failed to search files:', error);
+            this.showNotification('Failed to search files', true);
+        }
+    }
+
+    async downloadFile(fileId) {
+        try {
+            window.open(`/api/files/${fileId}/download`, '_blank');
+        } catch (error) {
+            console.error('Failed to download file:', error);
+            this.showNotification('Failed to download file', true);
+        }
+    }
+
+    async deleteFile(fileId) {
+        if (!confirm('Are you sure you want to delete this file?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/files/${fileId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showNotification('File deleted successfully');
+                if (this.selectedDirectory) {
+                    await this.loadFiles(this.selectedDirectory.id);
+                } else {
+                    await this.loadFiles();
+                }
+            } else {
+                throw new Error('Failed to delete file');
+            }
+        } catch (error) {
+            console.error('Failed to delete file:', error);
+            this.showNotification('Failed to delete file', true);
+        }
+    }
+
+    showDirectoryModal() {
+        const modal = document.getElementById('directoryModal');
+        modal.style.display = 'flex';
+        
+        // Populate tool dropdown
+        const toolSelect = document.getElementById('directoryTool');
+        toolSelect.innerHTML = '<option value="">All tools</option>';
+        this.tools.forEach(tool => {
+            toolSelect.innerHTML += `<option value="${tool.name}">${tool.name}</option>`;
+        });
+    }
+
+    hideDirectoryModal() {
+        const modal = document.getElementById('directoryModal');
+        modal.style.display = 'none';
+        document.getElementById('directoryForm').reset();
+    }
+
+    setupFileEventListeners() {
+        // Create directory button
+        document.getElementById('createDirectoryBtn').addEventListener('click', () => {
+            this.showDirectoryModal();
+        });
+
+        // Scan directories button
+        document.getElementById('scanDirectoriesBtn').addEventListener('click', () => {
+            this.scanDirectories();
+        });
+
+        // File search
+        document.getElementById('fileSearchBtn').addEventListener('click', () => {
+            const query = document.getElementById('fileSearchInput').value.trim();
+            if (query) {
+                this.searchFiles(query);
+            } else {
+                this.loadFiles(this.selectedDirectory?.id);
+            }
+        });
+
+        // Search on enter
+        document.getElementById('fileSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('fileSearchBtn').click();
+            }
+        });
+
+        // Directory form submission
+        document.getElementById('directoryForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            this.createDirectory(formData);
+        });
+
+        // Modal close button
+        document.querySelector('#directoryModal .close').addEventListener('click', () => {
+            this.hideDirectoryModal();
+        });
+
+        // Cancel button
+        document.querySelector('#directoryModal .cancel-btn').addEventListener('click', () => {
+            this.hideDirectoryModal();
+        });
+
+        // Close modal on outside click
+        document.getElementById('directoryModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                this.hideDirectoryModal();
+            }
+        });
+    }
 }
 
 // Initialize the application
+let commander;
 document.addEventListener('DOMContentLoaded', () => {
-    new Commander();
+    commander = new Commander();
 });

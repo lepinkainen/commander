@@ -42,7 +42,8 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 **Main Entry Point** (`cmd/server/main.go`)
 
 - Application bootstrap with graceful shutdown
-- Command-line flag parsing for server configuration
+- Command-line flag parsing for server configuration (`-db` flag for SQLite database path)
+- SQLite database initialization and connection management
 - Coordinates task manager, executor, and API server
 
 **Task Management** (`internal/task/`)
@@ -52,6 +53,15 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 - **Key Pattern**: Uses Go channels for event broadcasting to WebSocket clients
 - **Status Flow**: `StatusQueued → StatusRunning → StatusComplete/Failed/Canceled`
 - **Threading**: All operations are mutex-protected; `Clone()` returns safe `TaskData` copies
+- **Persistence**: Hybrid approach with in-memory cache + SQLite database for durability
+
+**Data Persistence** (`internal/storage/`)
+
+- `SQLiteRepository`: Full CRUD operations for task data and output
+- **Database Schema**: `tasks` table for metadata, `task_outputs` table for command output lines
+- **Hybrid Storage**: Active tasks cached in memory, all tasks persisted to SQLite database
+- **Recovery**: Tasks can be loaded from database if not in memory cache
+- **Output Streaming**: Real-time output appended to database with timestamps
 
 **Command Execution** (`internal/executor/`)
 
@@ -73,13 +83,16 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 - Single-page JavaScript application
 - Real-time task monitoring via WebSocket
 - Tool selection and task submission interface
+- MUST not require a compilation step
 
 ### Data Flow & Concurrency
 
-1. **Task Creation**: Frontend `POST /api/tasks` → `Manager.AddTask()` → Tool-specific `chan *Task`
-2. **Task Execution**: Worker goroutine → `exec.CommandContext()` → Live stdout/stderr → `Manager.AppendTaskOutput()` → WebSocket broadcast
+1. **Task Creation**: Frontend `POST /api/tasks` → `Manager.AddTask()` → SQLite persistence → Tool-specific `chan *Task`
+2. **Task Execution**: Worker goroutine → `exec.CommandContext()` → Live stdout/stderr → `Manager.AppendTaskOutput()` → SQLite + WebSocket broadcast
 3. **Real-time Updates**: Manager's `[]chan TaskEvent` broadcasts to all connected WebSocket clients
 4. **Queue Management**: Each tool has buffered channel (size 100) with dedicated worker pool
+5. **Data Persistence**: All task state changes and output lines saved to SQLite database
+6. **Recovery**: On restart, tasks can be retrieved from database (active execution state not restored)
 
 ### Configuration Patterns
 
@@ -132,10 +145,11 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 
 ### Architecture Constraints
 
-- **In-Memory Only**: No persistence - all task data lost on restart
+- **Task Persistence**: SQLite database for durable storage, but active execution state not restored on restart
 - **No Authentication**: Executes arbitrary commands - trusted environments only
 - **Buffer Limits**: Task queues limited to 100 items per tool
 - **WebSocket Scaling**: No connection limits implemented
+- **Database**: Single SQLite file, not suitable for high-concurrency multi-instance deployments
 
 ### Testing Patterns
 
@@ -149,10 +163,11 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 
 **Operational Details**:
 
-- Server defaults: `:8080` (via `-addr`), 4 workers/tool (via `-workers`)
+- Server defaults: `:8080` (via `-addr`), 4 workers/tool (via `-workers`), `./data/commander.db` (via `-db`)
 - Graceful shutdown: 30s timeout for task completion
 - CORS enabled for development (`AllowedOrigins: ["*"]`)
 - Tool availability checked before task creation
+- Database: Automatic creation of `./data/` directory and SQLite schema initialization
 
 **Extension Points**:
 

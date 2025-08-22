@@ -12,6 +12,7 @@ import (
 
 	"github.com/lepinkainen/commander/internal/api"
 	"github.com/lepinkainen/commander/internal/executor"
+	"github.com/lepinkainen/commander/internal/files"
 	"github.com/lepinkainen/commander/internal/storage"
 	"github.com/lepinkainen/commander/internal/task"
 )
@@ -26,7 +27,7 @@ func main() {
 	flag.Parse()
 
 	// Ensure data directory exists
-	if err := os.MkdirAll("./data", 0755); err != nil {
+	if err := os.MkdirAll("./data", 0o755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
 
@@ -35,10 +36,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer repo.Close()
+	defer func() {
+		if closeErr := repo.Close(); closeErr != nil {
+			log.Printf("Error closing database: %v", closeErr)
+		}
+	}()
 
 	// Create task manager
 	manager := task.NewManager(repo)
+
+	// Create file manager
+	fileManager := files.NewManager(repo)
 
 	// Create executor with configured tools
 	exec, err := executor.NewExecutor(*configPath, *workers, manager)
@@ -52,7 +60,7 @@ func main() {
 	}
 
 	// Create API server
-	server := api.NewServer(manager, exec)
+	server := api.NewServer(manager, exec, fileManager)
 
 	// Setup HTTP server
 	httpServer := &http.Server{
