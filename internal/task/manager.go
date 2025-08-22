@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/lepinkainen/commander/internal/files"
 	"github.com/lepinkainen/commander/internal/storage"
 	"github.com/lepinkainen/commander/internal/types"
 )
 
 // Manager manages all tasks
 type Manager struct {
-	repo      storage.TaskRepository
-	tasks     map[string]*Task // In-memory cache for active tasks
-	queues    map[string]chan *Task
-	mu        sync.RWMutex
-	listeners []chan TaskEvent
+	repo          storage.TaskRepository
+	tasks         map[string]*Task // In-memory cache for active tasks
+	queues        map[string]chan *Task
+	mu            sync.RWMutex
+	listeners     []chan TaskEvent
+	fileDiscovery *files.FileDiscovery
 }
 
 // TaskEvent represents a task state change
@@ -33,6 +35,11 @@ func NewManager(repo storage.TaskRepository) *Manager {
 		queues:    make(map[string]chan *Task),
 		listeners: make([]chan TaskEvent, 0),
 	}
+}
+
+// SetFileDiscovery sets the file discovery service for the manager
+func (m *Manager) SetFileDiscovery(fd *files.FileDiscovery) {
+	m.fileDiscovery = fd
 }
 
 // CreateQueue creates a new queue for a tool
@@ -165,6 +172,11 @@ func (m *Manager) UpdateTaskStatus(taskID string, status types.Status) error {
 
 	task.SetStatus(status)
 
+	// If task is completing and we have file discovery, process files
+	if status == types.StatusComplete && m.fileDiscovery != nil {
+		go m.processTaskFiles(taskID, task.Tool, task.Output)
+	}
+
 	// Update in database
 	ctx := context.Background()
 	if err := m.repo.Update(ctx, task.Clone()); err != nil {
@@ -238,6 +250,34 @@ func (m *Manager) broadcastEvent(event TaskEvent) {
 		default:
 			// Skip if listener is full
 		}
+	}
+}
+
+// processTaskFiles handles file discovery and organization for completed tasks
+func (m *Manager) processTaskFiles(taskID, toolName string, output []string) {
+	ctx := context.Background()
+
+	// Discover files from task output
+	discoveredFiles, err := m.fileDiscovery.DiscoverFilesFromOutput(ctx, taskID, toolName, output)
+	if err != nil {
+		fmt.Printf("Warning: failed to discover files for task %s: %v\n", taskID, err)
+		return
+	}
+
+	if len(discoveredFiles) > 0 {
+		fmt.Printf("Discovered %d files for task %s\n", len(discoveredFiles), taskID)
+
+		// Organize files by tool/date pattern
+		if err := m.fileDiscovery.OrganizeFilesByPattern(ctx, taskID, toolName, discoveredFiles); err != nil {
+			fmt.Printf("Warning: failed to organize files for task %s: %v\n", taskID, err)
+		}
+
+		// Broadcast file discovery event
+		m.broadcastEvent(TaskEvent{
+			TaskID: taskID,
+			Type:   "files_discovered",
+			Data:   fmt.Sprintf("Discovered %d files", len(discoveredFiles)),
+		})
 	}
 }
 

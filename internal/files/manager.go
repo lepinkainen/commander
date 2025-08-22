@@ -295,6 +295,75 @@ func (m *Manager) UntagFile(ctx context.Context, fileID string, tags []string) e
 	return nil
 }
 
+// BulkDeleteFiles deletes multiple files by their IDs
+func (m *Manager) BulkDeleteFiles(ctx context.Context, fileIDs []string) error {
+	var failures []string
+
+	for _, fileID := range fileIDs {
+		if err := m.DeleteFile(ctx, fileID); err != nil {
+			failures = append(failures, fmt.Sprintf("file %s: %v", fileID, err))
+		}
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("failed to delete some files: %s", strings.Join(failures, "; "))
+	}
+
+	return nil
+}
+
+// BulkMoveFiles moves multiple files to a target directory
+func (m *Manager) BulkMoveFiles(ctx context.Context, fileIDs []string, targetDirID string) error {
+	var failures []string
+
+	for _, fileID := range fileIDs {
+		if err := m.MoveFile(ctx, fileID, targetDirID); err != nil {
+			failures = append(failures, fmt.Sprintf("file %s: %v", fileID, err))
+		}
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("failed to move some files: %s", strings.Join(failures, "; "))
+	}
+
+	return nil
+}
+
+// BulkTagFiles adds tags to multiple files
+func (m *Manager) BulkTagFiles(ctx context.Context, fileIDs []string, tags []string) error {
+	var failures []string
+
+	for _, fileID := range fileIDs {
+		if err := m.TagFile(ctx, fileID, tags); err != nil {
+			failures = append(failures, fmt.Sprintf("file %s: %v", fileID, err))
+		}
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("failed to tag some files: %s", strings.Join(failures, "; "))
+	}
+
+	return nil
+}
+
+// GetTaskFiles returns all files associated with a specific task
+func (m *Manager) GetTaskFiles(ctx context.Context, taskID string) ([]*types.File, error) {
+	// Get all files from the database and filter by task ID
+	allFiles, err := m.fileRepo.ListFiles(ctx, types.FileFilters{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+
+	var taskFiles []*types.File
+	for _, file := range allFiles {
+		if file.TaskID != nil && *file.TaskID == taskID {
+			taskFiles = append(taskFiles, file)
+		}
+	}
+
+	return taskFiles, nil
+}
+
 // GetFileRepository returns the underlying file repository
 func (m *Manager) GetFileRepository() storage.FileRepository {
 	return m.fileRepo

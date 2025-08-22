@@ -17,16 +17,18 @@ const (
 
 // TaskData represents the data fields of a task
 type TaskData struct {
-	ID        string    `json:"id"`
-	Tool      string    `json:"tool"`
-	Command   string    `json:"command"`
-	Args      []string  `json:"args"`
-	Status    Status    `json:"status"`
-	Output    []string  `json:"output"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	StartedAt time.Time `json:"started_at,omitempty"`
-	EndedAt   time.Time `json:"ended_at,omitempty"`
+	ID              string    `json:"id"`
+	Tool            string    `json:"tool"`
+	Command         string    `json:"command"`
+	Args            []string  `json:"args"`
+	Status          Status    `json:"status"`
+	Output          []string  `json:"output"`
+	Error           string    `json:"error,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	StartedAt       time.Time `json:"started_at,omitempty"`
+	EndedAt         time.Time `json:"ended_at,omitempty"`
+	OutputDirectory *string   `json:"output_directory,omitempty"` // Directory where task outputs files
+	AssociatedFiles []string  `json:"associated_files,omitempty"` // IDs of files created by this task
 }
 
 // Directory represents a download directory

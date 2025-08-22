@@ -72,6 +72,14 @@ func (s *Server) Router() http.Handler {
 	api.HandleFunc("/files/{id}/move", s.moveFile).Methods("POST")
 	api.HandleFunc("/files/{id}/tags", s.updateFileTags).Methods("POST")
 
+	// Bulk operations
+	api.HandleFunc("/files/bulk/delete", s.bulkDeleteFiles).Methods("POST")
+	api.HandleFunc("/files/bulk/move", s.bulkMoveFiles).Methods("POST")
+	api.HandleFunc("/files/bulk/tag", s.bulkTagFiles).Methods("POST")
+
+	// Task-file relationships
+	api.HandleFunc("/tasks/{id}/files", s.getTaskFiles).Methods("GET")
+
 	// Static files
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/static/")))
 
@@ -544,6 +552,107 @@ func (s *Server) updateFileTags(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(map[string]string{"status": "tagged"}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// BulkOperationRequest represents a bulk operation request
+type BulkOperationRequest struct {
+	FileIDs []string `json:"file_ids"`
+}
+
+// BulkMoveRequest represents a bulk move request
+type BulkMoveRequest struct {
+	FileIDs     []string `json:"file_ids"`
+	DirectoryID string   `json:"directory_id"`
+}
+
+// BulkTagRequest represents a bulk tag request
+type BulkTagRequest struct {
+	FileIDs []string `json:"file_ids"`
+	Tags    []string `json:"tags"`
+}
+
+// bulkDeleteFiles handles bulk file deletion
+func (s *Server) bulkDeleteFiles(w http.ResponseWriter, r *http.Request) {
+	var req BulkOperationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.fileManager.BulkDeleteFiles(r.Context(), req.FileIDs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":      "deleted",
+		"files_count": len(req.FileIDs),
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// bulkMoveFiles handles bulk file moves
+func (s *Server) bulkMoveFiles(w http.ResponseWriter, r *http.Request) {
+	var req BulkMoveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.fileManager.BulkMoveFiles(r.Context(), req.FileIDs, req.DirectoryID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":      "moved",
+		"files_count": len(req.FileIDs),
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// bulkTagFiles handles bulk file tagging
+func (s *Server) bulkTagFiles(w http.ResponseWriter, r *http.Request) {
+	var req BulkTagRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.fileManager.BulkTagFiles(r.Context(), req.FileIDs, req.Tags); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":      "tagged",
+		"files_count": len(req.FileIDs),
+		"tags":        req.Tags,
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// getTaskFiles returns files associated with a specific task
+func (s *Server) getTaskFiles(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	taskID := vars["id"]
+
+	taskFiles, err := s.fileManager.GetTaskFiles(r.Context(), taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(taskFiles); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
