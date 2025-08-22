@@ -32,12 +32,12 @@ tasks:
     cmds:
       - task: build-go
 
-  # CI build with proper test coverage and linting
+  # CI build without tests/linting (run separately in CI)
   build-ci:
-    desc: Build for CI/CD
-    deps: [test-ci, lint]
+    desc: Build for CI/CD (build only)
     cmds:
-      - task: build-go
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.PROJECT_NAME}} {{.MAIN_PATH}}
 
   # Test tasks
   test:

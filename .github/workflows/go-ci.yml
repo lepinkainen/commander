@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.25"
           cache: true  # Automatically caches go.mod/go.sum dependencies
 
       - name: Install Task
@@ -46,7 +46,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.25"
           cache: true
 
       - name: golangci-lint
@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        go-version: ["1.21"]
+        go-version: ["1.24", "1.25"]
 
     steps:
       - uses: actions/checkout@v5
@@ -80,7 +80,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
-        run: task build
+        run: task build-ci
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -92,6 +92,6 @@ jobs:
         uses: codecov/codecov-action@v5
         if: success() && matrix.os == 'ubuntu-latest' && hashFiles('./coverage.out') != ''
         with:
-          file: ./coverage.out
+          files: ./coverage.out
           flags: unittests
           name: codecov-umbrella
