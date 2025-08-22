@@ -48,6 +48,12 @@ func main() {
 	// Create file manager
 	fileManager := files.NewManager(repo)
 
+	// Create file discovery service
+	fileDiscovery := files.NewFileDiscovery(fileManager)
+
+	// Wire file discovery to task manager
+	manager.SetFileDiscovery(fileDiscovery)
+
 	// Create executor with configured tools
 	exec, err := executor.NewExecutor(*configPath, *workers, manager)
 	if err != nil {

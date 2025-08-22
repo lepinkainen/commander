@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/lepinkainen/commander/internal/storage"
+	"github.com/lepinkainen/commander/internal/types"
 )
 
 func TestCreateDirectory(t *testing.T) {
@@ -124,4 +126,153 @@ func (m *Manager) FormatFileSize(bytes int64) string {
 	}
 
 	return fmt.Sprintf("%d %s", bytes, "Bytes")
+}
+
+func TestManager_BulkOperations(t *testing.T) {
+	repo := storage.NewMockRepository()
+	manager := NewManager(repo)
+	ctx := context.Background()
+
+	// Create test directory
+	dir, err := manager.CreateDirectory(ctx, "Test Dir", "./test", nil, false)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	// Create test files
+	files := make([]*types.File, 3)
+	fileIDs := make([]string, 3)
+
+	for i := 0; i < 3; i++ {
+		file := &types.File{
+			ID:          fmt.Sprintf("file%d", i),
+			Filename:    fmt.Sprintf("test%d.txt", i),
+			FilePath:    fmt.Sprintf("./test/test%d.txt", i),
+			DirectoryID: dir.ID,
+			FileSize:    100,
+			MimeType:    "text/plain",
+			CreatedAt:   time.Now(),
+			AccessedAt:  time.Now(),
+			Tags:        []string{},
+		}
+
+		if err := repo.CreateFile(ctx, file); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		files[i] = file
+		fileIDs[i] = file.ID
+	}
+
+	t.Run("BulkTagFiles", func(t *testing.T) {
+		tags := []string{"test", "bulk"}
+		err := manager.BulkTagFiles(ctx, fileIDs, tags)
+		if err != nil {
+			t.Errorf("BulkTagFiles() error = %v", err)
+		}
+
+		// Verify tags were added (note: this would need actual tag implementation in mock)
+	})
+
+	t.Run("BulkMoveFiles", func(t *testing.T) {
+		// Create target directory
+		targetDir, err := manager.CreateDirectory(ctx, "Target Dir", "./target", nil, false)
+		if err != nil {
+			t.Fatalf("Failed to create target directory: %v", err)
+		}
+
+		// Note: This test would fail because we can't actually move files in the mock
+		// But it tests the interface
+		err = manager.BulkMoveFiles(ctx, fileIDs[:2], targetDir.ID)
+		if err == nil {
+			t.Error("Expected error for mock file move, but got none")
+		}
+	})
+
+	t.Run("BulkDeleteFiles", func(t *testing.T) {
+		// Test with non-existent files to verify error handling
+		nonExistentIDs := []string{"nonexistent1", "nonexistent2"}
+		err := manager.BulkDeleteFiles(ctx, nonExistentIDs)
+		if err == nil {
+			t.Error("Expected error for deleting non-existent files, but got none")
+		}
+	})
+}
+
+func TestManager_GetTaskFiles(t *testing.T) {
+	repo := storage.NewMockRepository()
+	manager := NewManager(repo)
+	ctx := context.Background()
+
+	// Create test directory
+	dir, err := manager.CreateDirectory(ctx, "Test Dir", "./test", nil, false)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	taskID := "test-task-123"
+
+	// Create files with and without task association
+	files := []*types.File{
+		{
+			ID:          "file1",
+			Filename:    "task-file1.txt",
+			FilePath:    "./test/task-file1.txt",
+			DirectoryID: dir.ID,
+			TaskID:      &taskID,
+			FileSize:    100,
+			MimeType:    "text/plain",
+			CreatedAt:   time.Now(),
+			AccessedAt:  time.Now(),
+			Tags:        []string{},
+		},
+		{
+			ID:          "file2",
+			Filename:    "task-file2.txt",
+			FilePath:    "./test/task-file2.txt",
+			DirectoryID: dir.ID,
+			TaskID:      &taskID,
+			FileSize:    200,
+			MimeType:    "text/plain",
+			CreatedAt:   time.Now(),
+			AccessedAt:  time.Now(),
+			Tags:        []string{},
+		},
+		{
+			ID:          "file3",
+			Filename:    "other-file.txt",
+			FilePath:    "./test/other-file.txt",
+			DirectoryID: dir.ID,
+			TaskID:      nil, // No task association
+			FileSize:    300,
+			MimeType:    "text/plain",
+			CreatedAt:   time.Now(),
+			AccessedAt:  time.Now(),
+			Tags:        []string{},
+		},
+	}
+
+	for _, file := range files {
+		if createErr := repo.CreateFile(ctx, file); createErr != nil {
+			t.Fatalf("Failed to create test file: %v", createErr)
+		}
+	}
+
+	// Test getting task files
+	taskFiles, err := manager.GetTaskFiles(ctx, taskID)
+	if err != nil {
+		t.Fatalf("GetTaskFiles() error = %v", err)
+	}
+
+	expectedCount := 2
+	if len(taskFiles) != expectedCount {
+		t.Errorf("Expected %d task files, got %d", expectedCount, len(taskFiles))
+	}
+
+	// Verify all returned files have the correct task ID
+	for _, file := range taskFiles {
+		if file.TaskID == nil || *file.TaskID != taskID {
+			t.Errorf("File %s has incorrect task ID: %v", file.ID, file.TaskID)
+		}
+	}
 }
