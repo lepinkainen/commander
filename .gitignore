@@ -84,3 +84,4 @@ data/
 # Task state files
 .task/
 
+internal/assets/static
