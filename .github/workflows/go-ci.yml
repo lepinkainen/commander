@@ -87,7 +87,7 @@ jobs:
           path: build/
 
       - name: Upload coverage reports to Codecov (Optional)
-        uses: codecov/codecov-action@6d798873df2b1b8e5846dba6fb86631229fbcb17  # v4.6.0
+        uses: codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00  # v4.6.0
         if: success() && matrix.os == 'ubuntu-latest' && hashFiles('./coverage.out') != ''
         with:
           file: ./coverage.out
