@@ -1,8 +1,10 @@
 package api
 
 import (
+	"embed"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -23,14 +25,16 @@ type Server struct {
 	executor    *executor.Executor
 	fileManager *files.Manager
 	upgrader    websocket.Upgrader
+	staticFiles *embed.FS
 }
 
 // NewServer creates a new API server
-func NewServer(manager *task.Manager, exec *executor.Executor, fileManager *files.Manager) *Server {
+func NewServer(manager *task.Manager, exec *executor.Executor, fileManager *files.Manager, staticFiles *embed.FS) *Server {
 	return &Server{
 		manager:     manager,
 		executor:    exec,
 		fileManager: fileManager,
+		staticFiles: staticFiles,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// Allow all origins in development
@@ -80,8 +84,19 @@ func (s *Server) Router() http.Handler {
 	// Task-file relationships
 	api.HandleFunc("/tasks/{id}/files", s.getTaskFiles).Methods("GET")
 
-	// Static files
-	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/static/")))
+	// Static files - use embedded files if available, fallback to filesystem
+	if s.staticFiles != nil {
+		staticFS, err := fs.Sub(*s.staticFiles, "static")
+		if err != nil {
+			log.Printf("Failed to create static files sub-filesystem, falling back to filesystem: %v", err)
+			router.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/static/")))
+		} else {
+			router.PathPrefix("/").Handler(http.FileServer(http.FS(staticFS)))
+		}
+	} else {
+		// Fallback to filesystem for development
+		router.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/static/")))
+	}
 
 	// Add CORS middleware
 	c := cors.New(cors.Options{

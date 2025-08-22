@@ -80,4 +80,7 @@ data/
 
 # PPlaywright temp files
 .playwright-mcp/
-data/commander.db
+
+# Task state files
+.task/
+

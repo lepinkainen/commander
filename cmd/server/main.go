@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lepinkainen/commander/internal/api"
+	"github.com/lepinkainen/commander/internal/assets"
 	"github.com/lepinkainen/commander/internal/executor"
 	"github.com/lepinkainen/commander/internal/files"
 	"github.com/lepinkainen/commander/internal/storage"
@@ -23,6 +25,7 @@ func main() {
 		workers    = flag.Int("workers", 4, "Number of workers per tool")
 		configPath = flag.String("config", "./config/tools.json", "Path to tools configuration")
 		dbPath     = flag.String("db", "./data/commander.db", "Path to SQLite database")
+		dev        = flag.Bool("dev", false, "Development mode - serve static files from filesystem instead of embedded")
 	)
 	flag.Parse()
 
@@ -66,7 +69,11 @@ func main() {
 	}
 
 	// Create API server
-	server := api.NewServer(manager, exec, fileManager)
+	var staticFiles *embed.FS
+	if !*dev {
+		staticFiles = &assets.StaticFiles
+	}
+	server := api.NewServer(manager, exec, fileManager, staticFiles)
 
 	// Setup HTTP server
 	httpServer := &http.Server{

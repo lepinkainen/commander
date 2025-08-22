@@ -36,6 +36,7 @@ tasks:
   build-ci:
     desc: Build for CI/CD (build only)
     cmds:
+      - task: sync-static-files
       - mkdir -p {{.BUILD_DIR}}
       - go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.PROJECT_NAME}} {{.MAIN_PATH}}
 
@@ -77,6 +78,7 @@ tasks:
   build-go:
     desc: Build Go binary
     cmds:
+      - task: sync-static-files
       - goimports -w .
       - mkdir -p {{.BUILD_DIR}}
       - go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.PROJECT_NAME}} {{.MAIN_PATH}}
@@ -85,12 +87,12 @@ tasks:
   dev:
     desc: Start development server
     cmds:
-      - go run {{.MAIN_PATH}}/main.go
+      - go run {{.MAIN_PATH}}/main.go -dev
 
   dev-watch:
     desc: Start development server with auto-reload (requires air)
     cmds:
-      - air
+      - air -build.cmd "go build -o ./build/{{.PROJECT_NAME}} {{.MAIN_PATH}}" -build.bin "./build/{{.PROJECT_NAME}} -dev"
 
   # Install development dependencies
   install-tools:
@@ -142,3 +144,15 @@ tasks:
       - go test -cover -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
+
+  # Sync static files to embedded assets directory
+  sync-static-files:
+    desc: Copy web/static files to internal/assets for embedding
+    cmds:
+      - mkdir -p internal/assets
+      - rm -rf internal/assets/static
+      - cp -r web/static internal/assets/
+    sources:
+      - web/static/**/*
+    generates:
+      - internal/assets/static/**/*
