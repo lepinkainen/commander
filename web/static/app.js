@@ -8,6 +8,7 @@ class Commander {
         this.directories = [];
         this.files = [];
         this.selectedDirectory = null;
+        this.selectedFiles = new Set();
         this.init();
     }
 
@@ -54,13 +55,13 @@ class Commander {
     async loadTools() {
         try {
             const response = await fetch('/api/tools');
-            const tools = await response.json();
+            this.tools = await response.json();
             const toolButtonsContainer = document.getElementById('tool-buttons');
             const toolInput = document.getElementById('tool');
             
             toolButtonsContainer.innerHTML = '';
             
-            tools.forEach((tool, index) => {
+            this.tools.forEach((tool, index) => {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'tool-btn';
@@ -212,6 +213,37 @@ class Commander {
                     this.appendOutputToTask(task_id, content);
                 }
                 break;
+                
+            case 'files_discovered':
+                // Handle file discovery notification
+                this.handleFileDiscovery(task_id, content);
+                break;
+        }
+    }
+
+    handleFileDiscovery(taskId, files) {
+        // Update task with associated files
+        const task = this.tasks.get(taskId);
+        if (task) {
+            task.associated_files = files;
+            this.updateTaskElement(taskId);
+        }
+        
+        // Show notification about file discovery
+        if (files && files.length > 0) {
+            const fileCount = files.length;
+            const message = `📁 ${fileCount} file${fileCount > 1 ? 's' : ''} discovered for task`;
+            this.showNotification(message);
+        }
+        
+        // Refresh file list if current directory matches any of the discovered files
+        if (this.selectedDirectory && files && files.length > 0) {
+            const hasMatchingFiles = files.some(file => 
+                file.directory_id === this.selectedDirectory.id
+            );
+            if (hasMatchingFiles) {
+                this.loadFiles(this.selectedDirectory.id);
+            }
         }
     }
 
@@ -321,6 +353,7 @@ class Commander {
         
         const command = `${task.command} ${task.args.join(' ')}`;
         const hasOutput = task.output && task.output.length > 0;
+        const hasFiles = task.associated_files && task.associated_files.length > 0;
         const isCancelable = task.status === 'running' || task.status === 'queued';
         
         div.innerHTML = `
@@ -338,6 +371,23 @@ class Commander {
                     ${task.output.map(line => `
                         <div class="output-line ${line.startsWith('[ERROR]') ? 'error' : ''}">${this.escapeHtml(line)}</div>
                     `).join('')}
+                </div>
+            ` : ''}
+            ${hasFiles ? `
+                <div class="task-files">
+                    <h4>📁 Associated Files (${task.associated_files.length})</h4>
+                    <div class="task-file-list">
+                        ${task.associated_files.map(file => `
+                            <div class="task-file-item">
+                                <div class="task-file-name">${this.escapeHtml(file.filename)}</div>
+                                <div class="task-file-meta">
+                                    ${this.formatFileSize(file.file_size)} • 
+                                    ${file.mime_type || 'Unknown type'} • 
+                                    <a href="/api/files/${file.id}/download" target="_blank">Download</a>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             ` : ''}
         `;
@@ -534,22 +584,35 @@ class Commander {
                 ? 'No files found in this directory.<br>Click "Scan Directories" to discover files.'
                 : 'Select a directory to view files.';
             container.innerHTML = `<div class="empty-state">${message}</div>`;
+            this.updateBulkActionsVisibility();
             return;
         }
 
         container.innerHTML = this.files.map(file => `
             <div class="file-item" data-id="${file.id}">
-                <div class="file-name">${this.escapeHtml(file.filename)}</div>
-                <div class="file-meta">Type: ${file.mime_type || 'Unknown'}</div>
-                <div class="file-meta">Size: ${this.formatFileSize(file.file_size)}</div>
-                <div class="file-meta">Created: ${new Date(file.created_at).toLocaleDateString()}</div>
-                ${file.tags && file.tags.length > 0 ? `<div class="file-meta">Tags: ${file.tags.join(', ')}</div>` : ''}
-                <div class="file-actions">
-                    <button onclick="commander.downloadFile('${file.id}')">Download</button>
-                    <button onclick="commander.deleteFile('${file.id}')" class="danger">Delete</button>
+                <div class="file-checkbox">
+                    <input type="checkbox" 
+                           id="file-${file.id}" 
+                           class="file-select-checkbox" 
+                           data-file-id="${file.id}"
+                           ${this.selectedFiles.has(file.id) ? 'checked' : ''}>
+                </div>
+                <div class="file-content">
+                    <div class="file-name">${this.escapeHtml(file.filename)}</div>
+                    <div class="file-meta">Type: ${file.mime_type || 'Unknown'}</div>
+                    <div class="file-meta">Size: ${this.formatFileSize(file.file_size)}</div>
+                    <div class="file-meta">Created: ${new Date(file.created_at).toLocaleDateString()}</div>
+                    ${file.tags && file.tags.length > 0 ? `<div class="file-meta">Tags: ${file.tags.join(', ')}</div>` : ''}
+                    <div class="file-actions">
+                        <button onclick="commander.downloadFile('${file.id}')">Download</button>
+                        <button onclick="commander.deleteFile('${file.id}')" class="danger">Delete</button>
+                    </div>
                 </div>
             </div>
         `).join('');
+        
+        this.setupFileCheckboxListeners();
+        this.updateBulkActionsVisibility();
     }
 
     formatFileSize(bytes) {
@@ -724,6 +787,242 @@ class Commander {
                 this.hideDirectoryModal();
             }
         });
+
+        // Bulk actions
+        this.setupBulkActionListeners();
+    }
+
+    setupBulkActionListeners() {
+        // Select all button
+        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            this.selectAllFiles();
+        });
+
+        // Clear selection button
+        document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+            this.clearFileSelection();
+        });
+
+        // Bulk delete button
+        document.getElementById('bulkDeleteBtn').addEventListener('click', () => {
+            this.bulkDeleteFiles();
+        });
+
+        // Bulk move button
+        document.getElementById('bulkMoveBtn').addEventListener('click', () => {
+            this.showBulkMoveModal();
+        });
+
+        // Bulk tag button
+        document.getElementById('bulkTagBtn').addEventListener('click', () => {
+            this.showBulkTagModal();
+        });
+
+        // Bulk move form
+        document.getElementById('bulkMoveForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            this.executeBulkMove(formData.get('directory'));
+        });
+
+        // Bulk tag form
+        document.getElementById('bulkTagForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            this.executeBulkTag(formData.get('tags'));
+        });
+
+        // Bulk move modal controls
+        document.querySelector('#bulkMoveModal .close').addEventListener('click', () => {
+            this.hideBulkMoveModal();
+        });
+        document.querySelector('#bulkMoveModal .cancel-btn').addEventListener('click', () => {
+            this.hideBulkMoveModal();
+        });
+
+        // Bulk tag modal controls
+        document.querySelector('#bulkTagModal .close').addEventListener('click', () => {
+            this.hideBulkTagModal();
+        });
+        document.querySelector('#bulkTagModal .cancel-btn').addEventListener('click', () => {
+            this.hideBulkTagModal();
+        });
+
+        // Close modals on outside click
+        document.getElementById('bulkMoveModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                this.hideBulkMoveModal();
+            }
+        });
+        document.getElementById('bulkTagModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                this.hideBulkTagModal();
+            }
+        });
+    }
+
+    setupFileCheckboxListeners() {
+        document.querySelectorAll('.file-select-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const fileId = e.target.dataset.fileId;
+                if (e.target.checked) {
+                    this.selectedFiles.add(fileId);
+                } else {
+                    this.selectedFiles.delete(fileId);
+                }
+                this.updateBulkActionsVisibility();
+            });
+        });
+    }
+
+    updateBulkActionsVisibility() {
+        const bulkActions = document.getElementById('bulkActions');
+        const selectedCount = document.getElementById('selectedCount');
+        
+        if (this.selectedFiles.size > 0) {
+            bulkActions.style.display = 'flex';
+            selectedCount.textContent = this.selectedFiles.size;
+        } else {
+            bulkActions.style.display = 'none';
+        }
+    }
+
+    selectAllFiles() {
+        this.files.forEach(file => {
+            this.selectedFiles.add(file.id);
+        });
+        this.renderFiles();
+    }
+
+    clearFileSelection() {
+        this.selectedFiles.clear();
+        this.renderFiles();
+    }
+
+    async bulkDeleteFiles() {
+        if (this.selectedFiles.size === 0) return;
+
+        const confirmMessage = `Are you sure you want to delete ${this.selectedFiles.size} files? This action cannot be undone.`;
+        if (!confirm(confirmMessage)) return;
+
+        try {
+            const response = await fetch('/api/files/bulk/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_ids: Array.from(this.selectedFiles)
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification(`${this.selectedFiles.size} files deleted successfully`);
+                this.selectedFiles.clear();
+                if (this.selectedDirectory) {
+                    await this.loadFiles(this.selectedDirectory.id);
+                } else {
+                    await this.loadFiles();
+                }
+            } else {
+                throw new Error('Failed to delete files');
+            }
+        } catch (error) {
+            console.error('Failed to bulk delete files:', error);
+            this.showNotification('Failed to delete files', true);
+        }
+    }
+
+    showBulkMoveModal() {
+        if (this.selectedFiles.size === 0) return;
+
+        const modal = document.getElementById('bulkMoveModal');
+        const directorySelect = document.getElementById('moveToDirectory');
+        
+        // Populate directory options
+        directorySelect.innerHTML = '<option value="">Select directory...</option>';
+        this.directories.forEach(dir => {
+            directorySelect.innerHTML += `<option value="${dir.id}">${dir.name} (${dir.path})</option>`;
+        });
+        
+        modal.style.display = 'flex';
+    }
+
+    hideBulkMoveModal() {
+        document.getElementById('bulkMoveModal').style.display = 'none';
+        document.getElementById('bulkMoveForm').reset();
+    }
+
+    async executeBulkMove(directoryId) {
+        if (!directoryId || this.selectedFiles.size === 0) return;
+
+        try {
+            const response = await fetch('/api/files/bulk/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_ids: Array.from(this.selectedFiles),
+                    directory_id: directoryId
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification(`${this.selectedFiles.size} files moved successfully`);
+                this.selectedFiles.clear();
+                this.hideBulkMoveModal();
+                if (this.selectedDirectory) {
+                    await this.loadFiles(this.selectedDirectory.id);
+                } else {
+                    await this.loadFiles();
+                }
+            } else {
+                throw new Error('Failed to move files');
+            }
+        } catch (error) {
+            console.error('Failed to bulk move files:', error);
+            this.showNotification('Failed to move files', true);
+        }
+    }
+
+    showBulkTagModal() {
+        if (this.selectedFiles.size === 0) return;
+        document.getElementById('bulkTagModal').style.display = 'flex';
+    }
+
+    hideBulkTagModal() {
+        document.getElementById('bulkTagModal').style.display = 'none';
+        document.getElementById('bulkTagForm').reset();
+    }
+
+    async executeBulkTag(tagsInput) {
+        if (this.selectedFiles.size === 0) return;
+
+        const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+
+        try {
+            const response = await fetch('/api/files/bulk/tag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_ids: Array.from(this.selectedFiles),
+                    tags: tags
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification(`${this.selectedFiles.size} files tagged successfully`);
+                this.selectedFiles.clear();
+                this.hideBulkTagModal();
+                if (this.selectedDirectory) {
+                    await this.loadFiles(this.selectedDirectory.id);
+                } else {
+                    await this.loadFiles();
+                }
+            } else {
+                throw new Error('Failed to tag files');
+            }
+        } catch (error) {
+            console.error('Failed to bulk tag files:', error);
+            this.showNotification('Failed to tag files', true);
+        }
     }
 }
 

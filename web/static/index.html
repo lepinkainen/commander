@@ -84,6 +84,19 @@
           <button id="fileSearchBtn">Search</button>
         </div>
         
+        <div class="bulk-actions" id="bulkActions" style="display: none;">
+          <div class="bulk-selection-info">
+            <span id="selectedCount">0</span> files selected
+          </div>
+          <div class="bulk-buttons">
+            <button id="selectAllBtn">Select All</button>
+            <button id="clearSelectionBtn">Clear</button>
+            <button id="bulkDeleteBtn" class="danger">Delete Selected</button>
+            <button id="bulkMoveBtn">Move Selected</button>
+            <button id="bulkTagBtn">Tag Selected</button>
+          </div>
+        </div>
+        
         <div class="files-content">
           <div class="directories-panel">
             <h3>Directories</h3>
@@ -107,6 +120,46 @@
     </div>
 
     <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Bulk Move Modal -->
+    <div id="bulkMoveModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Move Selected Files</h3>
+        <form id="bulkMoveForm">
+          <div class="form-group">
+            <label for="moveToDirectory">Move to Directory</label>
+            <select id="moveToDirectory" name="directory" required>
+              <option value="">Select directory...</option>
+              <!-- Directory options will be populated dynamically -->
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="cancel-btn">Cancel</button>
+            <button type="submit">Move Files</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Bulk Tag Modal -->
+    <div id="bulkTagModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Tag Selected Files</h3>
+        <form id="bulkTagForm">
+          <div class="form-group">
+            <label for="fileTags">Tags (comma-separated)</label>
+            <input type="text" id="fileTags" name="tags" placeholder="tag1, tag2, tag3" />
+            <div class="form-help">Enter tags separated by commas. Leave empty to remove all tags.</div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="cancel-btn">Cancel</button>
+            <button type="submit">Apply Tags</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Directory Creation Modal -->
     <div id="directoryModal" class="modal" style="display: none;">

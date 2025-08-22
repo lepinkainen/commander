@@ -758,3 +758,143 @@ button:active {
     min-width: auto;
   }
 }
+
+/* Bulk Actions Styles */
+.bulk-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.bulk-selection-info {
+  color: var(--text-primary);
+  font-weight: bold;
+}
+
+.bulk-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bulk-buttons button {
+  padding: 0.5rem 1rem;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.9em;
+}
+
+.bulk-buttons button:hover {
+  border-color: var(--border-hover);
+  background: var(--primary-bg);
+}
+
+.bulk-buttons button.danger {
+  background: #f56565;
+  border-color: #f56565;
+}
+
+.bulk-buttons button.danger:hover {
+  background: #e53e3e;
+  border-color: #e53e3e;
+}
+
+/* File Checkbox Styles */
+.file-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.file-checkbox {
+  display: flex;
+  align-items: center;
+  padding-top: 0.25rem;
+}
+
+.file-select-checkbox {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+.file-content {
+  flex: 1;
+}
+
+/* Form Help Text */
+.form-help {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Task-File Integration Styles */
+.task-files {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+}
+
+.task-files h4 {
+  color: var(--accent-color);
+  margin-bottom: 0.5rem;
+  font-size: 0.9em;
+}
+
+.task-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.task-file-item {
+  padding: 0.5rem;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+.task-file-name {
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.task-file-meta {
+  color: var(--text-secondary);
+  font-size: 0.8em;
+}
+
+@media (max-width: 768px) {
+  .bulk-actions {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .bulk-buttons {
+    justify-content: center;
+  }
+  
+  .file-item {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .file-checkbox {
+    order: -1;
+  }
+}
