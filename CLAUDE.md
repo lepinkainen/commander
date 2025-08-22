@@ -80,9 +80,13 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 
 **Frontend** (`web/static/`)
 
-- Single-page JavaScript application
-- Real-time task monitoring via WebSocket
-- Tool selection and task submission interface
+- Single-page JavaScript application served as static files (no compilation required)
+- Real-time task monitoring via WebSocket with live output streaming
+- Tool selection and task submission interface with button-based UI
+- Comprehensive file management system with directory scanning and bulk operations
+- Theme switching support (default/terminal themes)
+- **Current State**: Monolithic 1,034-line `app.js` file (refactoring planned in issue #20)
+- **Architecture**: Direct static file serving - changes take effect immediately on reload
 - MUST not require a compilation step
 
 ### Data Flow & Concurrency
@@ -93,6 +97,8 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 4. **Queue Management**: Each tool has buffered channel (size 100) with dedicated worker pool
 5. **Data Persistence**: All task state changes and output lines saved to SQLite database
 6. **Recovery**: On restart, tasks can be retrieved from database (active execution state not restored)
+7. **File Management**: Directory scanning → File discovery → Metadata extraction → SQLite storage → WebSocket file discovery notifications
+8. **Bulk Operations**: Frontend selection → Batch API calls → Database updates → UI refresh
 
 ### Configuration Patterns
 
@@ -142,6 +148,8 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 - Use `task build` to ensure tests + linting pass before claiming completion
 - Follow existing mutex patterns when adding concurrent operations
 - New CLI tools: add to `config/tools.json`, restart server
+- **Frontend changes**: No compilation required - edit static files directly, refresh browser
+- **Frontend architecture**: Currently monolithic `app.js` - see GitHub issue #20 for modularization plan
 
 ### Architecture Constraints
 
@@ -172,7 +180,11 @@ Commander is a web-based CLI tool manager with real-time task execution and moni
 **Extension Points**:
 
 - Add tools via `config/tools.json` modification
-- WebSocket protocol: `{"task_id": "...", "type": "output|status|created", "data": "..."}`
-- API endpoints: RESTful `/api/tasks`, `/api/tools`, `/api/stats` + WebSocket `/api/ws`
+- WebSocket protocol: `{"task_id": "...", "type": "output|status|created|files_discovered", "data": "..."}`
+- API endpoints: 
+  - Task management: `/api/tasks`, `/api/tools`, `/api/stats`
+  - File management: `/api/directories`, `/api/files`, `/api/files/search`
+  - Bulk operations: `/api/files/bulk/delete`, `/api/files/bulk/move`, `/api/files/bulk/tag`
+  - WebSocket: `/api/ws`
 
 - Assume the server is already running in watch-mode, always updating when backend code changes
