@@ -7,7 +7,9 @@
       "workers": 2,
       "default_args": [
         "--no-warnings",
-        "--progress"
+        "--newline",
+        "-o",
+        "~/Downloads/%(title)s.%(ext)s"
       ]
     },
     {
@@ -15,7 +17,10 @@
       "command": "gallery-dl",
       "description": "Download image galleries from various websites",
       "workers": 2,
-      "default_args": []
+      "default_args": [
+        "-d",
+        "~/Downloads/"
+      ]
     },
     {
       "name": "wget",
@@ -23,7 +28,9 @@
       "description": "Download files from the web",
       "workers": 4,
       "default_args": [
-        "--progress=bar:force"
+        "--progress=bar:force",
+        "-P",
+        "~/Downloads/"
       ]
     },
     {
@@ -41,7 +48,9 @@
       "description": "Transfer data from or to a server",
       "workers": 4,
       "default_args": [
-        "--progress-bar"
+        "--progress-bar",
+        "--output-dir",
+        "~/Downloads/"
       ]
     },
     {

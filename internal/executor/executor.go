@@ -50,7 +50,11 @@ func NewExecutor(configPath string, defaultWorkers int, manager *task.Manager) (
 		}
 		return nil, fmt.Errorf("failed to open config: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing config file: %v", err)
+		}
+	}()
 
 	var config Config
 	if err := json.NewDecoder(file).Decode(&config); err != nil {
@@ -118,7 +122,9 @@ func createDefaultExecutor(configPath string, defaultWorkers int, manager *task.
 		if err := encoder.Encode(config); err != nil {
 			log.Printf("Warning: failed to encode config: %v", err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: failed to close config file: %v", err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

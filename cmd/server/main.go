@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	// Ensure data directory exists
-	if err := os.MkdirAll("./data", 0755); err != nil {
+	if err := os.MkdirAll("./data", 0o755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
 
@@ -35,7 +35,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer repo.Close()
+	defer func() {
+		if closeErr := repo.Close(); closeErr != nil {
+			log.Printf("Error closing database: %v", closeErr)
+		}
+	}()
 
 	// Create task manager
 	manager := task.NewManager(repo)

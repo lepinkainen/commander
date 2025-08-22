@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -126,8 +127,8 @@ func (r *SQLiteRepository) GetByID(ctx context.Context, id string) (types.TaskDa
 		return types.TaskData{}, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	if err := json.Unmarshal([]byte(argsJSON), &data.Args); err != nil {
-		return types.TaskData{}, fmt.Errorf("failed to unmarshal args: %w", err)
+	if unmarshalErr := json.Unmarshal([]byte(argsJSON), &data.Args); unmarshalErr != nil {
+		return types.TaskData{}, fmt.Errorf("failed to unmarshal args: %w", unmarshalErr)
 	}
 
 	if startedAt.Valid {
@@ -143,7 +144,11 @@ func (r *SQLiteRepository) GetByID(ctx context.Context, id string) (types.TaskDa
 	if err != nil {
 		return types.TaskData{}, fmt.Errorf("failed to get task output: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var output []string
 	for rows.Next() {
@@ -169,7 +174,11 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]types.TaskData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var tasks []types.TaskData
 	for rows.Next() {
@@ -184,8 +193,8 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]types.TaskData, error) {
 			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
 
-		if err := json.Unmarshal([]byte(argsJSON), &data.Args); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal args: %w", err)
+		if unmarshalErr := json.Unmarshal([]byte(argsJSON), &data.Args); unmarshalErr != nil {
+			return nil, fmt.Errorf("failed to unmarshal args: %w", unmarshalErr)
 		}
 
 		if startedAt.Valid {
@@ -206,12 +215,16 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]types.TaskData, error) {
 		for outputRows.Next() {
 			var line string
 			if err := outputRows.Scan(&line); err != nil {
-				outputRows.Close()
+				if closeErr := outputRows.Close(); closeErr != nil {
+					log.Printf("Error closing output rows: %v", closeErr)
+				}
 				return nil, fmt.Errorf("failed to scan output: %w", err)
 			}
 			output = append(output, line)
 		}
-		outputRows.Close()
+		if err := outputRows.Close(); err != nil {
+			log.Printf("Error closing output rows: %v", err)
+		}
 		data.Output = output
 
 		tasks = append(tasks, data)
@@ -231,7 +244,11 @@ func (r *SQLiteRepository) ListByTool(ctx context.Context, tool string) ([]types
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks by tool: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var tasks []types.TaskData
 	for rows.Next() {
@@ -246,8 +263,8 @@ func (r *SQLiteRepository) ListByTool(ctx context.Context, tool string) ([]types
 			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
 
-		if err := json.Unmarshal([]byte(argsJSON), &data.Args); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal args: %w", err)
+		if unmarshalErr := json.Unmarshal([]byte(argsJSON), &data.Args); unmarshalErr != nil {
+			return nil, fmt.Errorf("failed to unmarshal args: %w", unmarshalErr)
 		}
 
 		if startedAt.Valid {
@@ -268,12 +285,16 @@ func (r *SQLiteRepository) ListByTool(ctx context.Context, tool string) ([]types
 		for outputRows.Next() {
 			var line string
 			if err := outputRows.Scan(&line); err != nil {
-				outputRows.Close()
+				if closeErr := outputRows.Close(); closeErr != nil {
+					log.Printf("Error closing output rows: %v", closeErr)
+				}
 				return nil, fmt.Errorf("failed to scan output: %w", err)
 			}
 			output = append(output, line)
 		}
-		outputRows.Close()
+		if err := outputRows.Close(); err != nil {
+			log.Printf("Error closing output rows: %v", err)
+		}
 		data.Output = output
 
 		tasks = append(tasks, data)

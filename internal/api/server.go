@@ -21,10 +21,10 @@ type Server struct {
 }
 
 // NewServer creates a new API server
-func NewServer(manager *task.Manager, executor *executor.Executor) *Server {
+func NewServer(manager *task.Manager, exec *executor.Executor) *Server {
 	return &Server{
 		manager:  manager,
-		executor: executor,
+		executor: exec,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// Allow all origins in development
@@ -95,16 +95,16 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create task
-	task := task.NewTask(req.Tool, req.Command, req.Args)
+	newTask := task.NewTask(req.Tool, req.Command, req.Args)
 
 	// Add to manager
-	if err := s.manager.AddTask(task); err != nil {
+	if err := s.manager.AddTask(newTask); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(task); err != nil {
+	if err := json.NewEncoder(w).Encode(newTask); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
@@ -131,14 +131,14 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	taskID := vars["id"]
 
-	task, err := s.manager.GetTask(taskID)
+	taskData, err := s.manager.GetTask(taskID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(task); err != nil {
+	if err := json.NewEncoder(w).Encode(taskData); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
@@ -183,7 +183,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Error closing WebSocket connection: %v", err)
+		}
+	}()
 
 	// Subscribe to task events
 	events := s.manager.Subscribe()
