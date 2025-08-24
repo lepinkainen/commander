@@ -1,6 +1,6 @@
 # Taskfile for Commander project
 # https://taskfile.dev/
-version: '3'
+version: "3"
 
 vars:
   BUILD_DIR: build
@@ -44,7 +44,7 @@ tasks:
   test:
     desc: Run tests
     cmds:
-      - go test -v ./...
+      - go test ./...
 
   test-ci:
     desc: Run tests with coverage for CI
